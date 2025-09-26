@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    container_name: jobrecs-web
+    ports:
+    - "3000:3000"
+    environment:
+    # Option 1: backend là container khác tên 'backend' (khuyên dùng khi có BE)
+    - BACKEND_BASE_URL=http://backend:8000
