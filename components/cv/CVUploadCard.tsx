@@ -51,7 +51,7 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
             <FileText className="w-4 h-4"/> Chọn tệp CV
           </button>
           {allowDemo && (
-            <button onClick={demoOcr} className="px-4 py-2 rounded-xl border bg-gray-900 text-white hover:opacity-90">
+            <button type="button" onClick={demoOcr} className="px-4 py-2 rounded-xl border bg-gray-900 text-white hover:opacity-90">
               DEMO OCR
             </button>
           )}

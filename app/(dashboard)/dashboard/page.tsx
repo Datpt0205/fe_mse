@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-[1400px] mx-auto px-4 py-8">
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">JobRecs – Bảng điều khiển</h1>
@@ -41,8 +41,10 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      {/* LAYOUT 12 cột: trái 7, phải 5 */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* LEFT – Jobs */}
+        <div className="col-span-12 lg:col-span-7 space-y-6">
           <JobsPanel
             source={jobSource}
             query={query}
@@ -52,7 +54,9 @@ export default function DashboardPage() {
             selectedJobId={selectedJob?.id}
           />
         </div>
-        <div className="lg:col-span-1 space-y-6">
+
+        {/* RIGHT – ưu tiên Phân tích CV trên cùng */}
+        <div className="col-span-12 lg:col-span-5 space-y-6">
           <CVUploadCard onOcrDone={(res)=>{ setOcr(res); setSelectedJob(null); }} allowDemo />
           <div className="border rounded-2xl p-4">
             <SectionHeader icon={TrendingUp} title="Phân tích CV" desc="Điểm mạnh/yếu + ngành/role đề xuất" />
@@ -62,6 +66,8 @@ export default function DashboardPage() {
               Mẹo: Khi BE sẵn sàng, đặt useBackend=true để gọi endpoint thật.
             </div>
           </div>
+
+
           <div className="border rounded-2xl p-4">
             <SectionHeader icon={TrendingUp} title="So khớp kỹ năng với job đã chọn" desc="Dựa trên tags job vs skills từ CV" />
             <SkillMatchPanel ocrSkills={ocr?.skills || []} job={selectedJob} />
