@@ -47,7 +47,7 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
       >
         <p className="text-sm text-gray-600">Kéo thả CV vào đây</p>
         <div className="flex items-center justify-center gap-3 mt-3">
-          <button onClick={clickFile} className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-2">
+          <button type="button" onClick={clickFile} className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-2">
             <FileText className="w-4 h-4"/> Chọn tệp CV
           </button>
           {allowDemo && (

@@ -1,17 +1,65 @@
+// client/src/services/cvService.ts
+// Gọi API backend có prefix /api/v1
 import type { CvAnalysis, OcrResult } from "@/types/cv";
 import { apiPost } from "@/lib/api";
 
-export async function uploadCvToBackend(file: File): Promise<OcrResult> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch(`/api/cv/ocr`, { method: "POST", body: fd });
-  if (!res.ok) throw new Error("OCR API error");
-  return res.json();
+
+type AnalyzePayload = { text: string; skills?: string[] };
+
+// client/src/services/cvService.ts
+const API = (process.env.NEXT_PUBLIC_API || "").replace(/\/+$/, "");
+console.log("API", API)
+const CV_BASE = `${API}/api/v1/cv`;
+
+export async function uploadCvToBackend(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("provider_type", "openai");
+  form.append("model_name", "gpt-4o-mini");
+
+  try {
+    const res = await fetch(`${CV_BASE}/ocr`, { method: "POST", body: form });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      const msg = `OCR ${res.status} ${res.statusText} ${txt || ""}`;
+      console.error("[uploadCvToBackend] error:", msg);
+      throw new Error(msg);
+    }
+    return res.json(); // { text, skills }
+  } catch (e: any) {
+    console.error("[uploadCvToBackend] fetch failed:", e);
+    throw e;
+  }
 }
 
-export async function analyzeCvOnBackend(payload: { text: string; skills: string[] }): Promise<CvAnalysis> {
-  return apiPost<CvAnalysis>(`/api/cv/analyze`, payload);
+
+/** Phân tích CV (raw text) -> UI payload cho màn hình Analysis */
+export async function analyzeCvOnBackend(payload: AnalyzePayload) {
+  const form = new FormData();
+  form.append("provider_type", "openai");
+  form.append("model_name", "gpt-4o-mini");
+  form.append("raw_text", payload.text || "");
+
+  const res = await fetch(`${CV_BASE}/analyze-ui`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    let msg = "Analyze failed";
+    try {
+      const t = await res.text();
+      if (t) msg = t;
+    } catch {}
+    throw new Error(msg);
+  }
+  // { status, message, data } -> trả luôn data cho component
+  const json = await res.json();
+  return json.data;
 }
+
+
 
 export async function mockAnalyzeCv(payload: { text: string; skills: string[] }): Promise<CvAnalysis> {
   await new Promise(r=>setTimeout(r,700));

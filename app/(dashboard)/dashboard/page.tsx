@@ -60,7 +60,7 @@ export default function DashboardPage() {
           <CVUploadCard onOcrDone={(res)=>{ setOcr(res); setSelectedJob(null); }} allowDemo />
           <div className="border rounded-2xl p-4">
             <SectionHeader icon={TrendingUp} title="Phân tích CV" desc="Điểm mạnh/yếu + ngành/role đề xuất" />
-            <AnalysisPanel ocr={ocr} useBackend={false} />
+            <AnalysisPanel ocr={ocr} useBackend={true} />
             <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               Mẹo: Khi BE sẵn sàng, đặt useBackend=true để gọi endpoint thật.

@@ -5,4 +5,4 @@ services:
     ports:
     - "3000:3000"
     environment:
-    - BACKEND_BASE_URL=http://backend:8686
+    - BACKEND_BASE_URL=http://localhost:8686
