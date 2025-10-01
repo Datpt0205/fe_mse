@@ -41,7 +41,7 @@ export async function analyzeCvOnBackend(payload: AnalyzePayload) {
   form.append("model_name", "gpt-4o-mini");
   form.append("raw_text", payload.text || "");
 
-  const res = await fetch(`${CV_BASE}/analyze-ui-heuristic`, {
+  const res = await fetch(`${CV_BASE}/analyze-ui`, {
     method: "POST",
     body: form,
   });
@@ -59,30 +59,39 @@ export async function analyzeCvOnBackend(payload: AnalyzePayload) {
   return json.data;
 }
 
-
-
 export async function mockAnalyzeCv(payload: { text: string; skills: string[] }): Promise<CvAnalysis> {
-  await new Promise(r=>setTimeout(r,700));
+  await new Promise(r => setTimeout(r, 700));
   const base = payload.skills.slice(0, 8);
+
+  // radar động mẫu (5 trục)
+  const radar = [
+    { axis: "Backend",  score: 40 },
+    { axis: "Data",     score: 30 },
+    { axis: "DevOps",   score: 50 },
+    { axis: "Frontend", score: 20 },
+    { axis: "AI/ML",    score: 10 },
+  ];
+
   return {
     strengths: base.slice(0, 4).map((s, i) => ({ skill: s, score: 82 - i * 9, note: "Kinh nghiệm vững" })),
     weaknesses: [
-      { skill: "System Design", gap: 35, tip: "Ôn pattern, luyện mock interview" },
-      { skill: "Cloud (AWS)", gap: 25, tip: "Học dịch vụ core: EC2, S3, RDS" }
+      { skill: "AI/ML",    gap: 90, tip: "Tăng AI/ML qua dự án nhỏ & luyện 30–60 phút/ngày", url: "https://www.coursera.org/learn/machine-learning" },
+      { skill: "Frontend", gap: 80, tip: "Tăng Frontend qua dự án nhỏ & luyện 30–60 phút/ngày", url: "https://nextjs.org/learn" },
+      { skill: "Data",     gap: 70, tip: "Ôn SQL/ETL + thực hành Airflow", url: "https://www.udemy.com/course/the-ultimate-hands-on-course-to-master-apache-airflow/" },
     ],
     industries: [
-      { name: "Fintech", score: 86, rationale: "Phù hợp kỹ năng xử lý dữ liệu/ETL" },
-      { name: "E-commerce", score: 79, rationale: "Kinh nghiệm web + phân tích hành vi" },
-      { name: "AI/ML", score: 72, rationale: "Có NLP/RecSys nền tảng" }
+      { name: "Fintech",     score: 86, rationale: "Phù hợp kỹ năng xử lý dữ liệu/ETL" },
+      { name: "E-commerce",  score: 79, rationale: "Kinh nghiệm web + phân tích hành vi" },
+      { name: "AI/ML",       score: 72, rationale: "Có nền tảng NLP/RecSys" }
     ],
     roles: [
-      { name: "Data Engineer", score: 84, rationale: "SQL + Python + ETL tốt" },
-      { name: "ML Engineer (RecSys)", score: 80, rationale: "Có trải nghiệm đề tài recommendation" }
+      { name: "Data Engineer",         score: 84, rationale: "SQL + Python + ETL tốt" },
+      { name: "ML Engineer (RecSys)",  score: 80, rationale: "Có trải nghiệm đề tài recommendation" }
     ],
-    overall_score: 82,
     explanations: [
       "Tỷ lệ trùng kỹ năng cao với nhóm việc ML/Data",
       "Kinh nghiệm triển khai dịch vụ web phù hợp môi trường sản xuất"
-    ]
+    ],
+    radar, // <-- thêm radar vào kết quả mock
   };
 }

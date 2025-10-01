@@ -34,7 +34,7 @@ export default function JobCard({ job, selected, onSelect, saved, onToggleSave }
           {job.salary && <p className="text-sm font-medium text-emerald-700">{job.salary}</p>}
           <div className="flex items-center justify-end gap-2 mt-2">
             <a className="text-xs underline text-gray-700 flex items-center gap-1" href={job.url} target="_blank" rel="noreferrer" onClick={(e)=>e.stopPropagation()}>
-              Mở <ExternalLink className="w-3 h-3"/>
+              Link <ExternalLink className="w-3 h-3"/>
             </a>
             <button onClick={(e)=>{e.stopPropagation(); onToggleSave?.();}} className="p-1 rounded hover:bg-gray-100" aria-label="save">
               {saved ? <BookmarkCheck className="w-4 h-4 text-emerald-600"/> : <Bookmark className="w-4 h-4"/>}

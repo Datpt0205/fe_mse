@@ -36,7 +36,7 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
 
   return (
     <div className="border rounded-2xl p-4">
-      <SectionHeader icon={Upload} title="Tải CV để phân tích" desc="Kéo thả hoặc chọn tệp (PDF/DOC/DOCX/PNG/JPG)" />
+      <SectionHeader icon={Upload} title="Upload CV to analyze" desc="Drag and drop or select files (PDF/DOC/DOCX/PNG/JPG)" />
       <input ref={inputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="hidden" onChange={(e) => onSelect(e.target.files?.[0])} />
 
       <div
@@ -45,10 +45,10 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
         onDragLeave={()=> setDragOver(false)}
         onDrop={(e)=>{ e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; onSelect(f); }}
       >
-        <p className="text-sm text-gray-600">Kéo thả CV vào đây</p>
+        <p className="text-sm text-gray-600">Drag and drop your CV here</p>
         <div className="flex items-center justify-center gap-3 mt-3">
           <button type="button" onClick={clickFile} className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-2">
-            <FileText className="w-4 h-4"/> Chọn tệp CV
+            <FileText className="w-4 h-4"/> Select CV
           </button>
           {allowDemo && (
             <button type="button" onClick={demoOcr} className="px-4 py-2 rounded-xl border bg-gray-900 text-white hover:opacity-90">
@@ -60,7 +60,6 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
       </div>
 
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-      <p className="text-xs text-gray-500 mt-2">* FE chỉ upload tệp và gọi API OCR ở Backend của bạn.</p>
     </div>
   );
 }

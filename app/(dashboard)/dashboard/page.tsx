@@ -17,14 +17,14 @@ export default function DashboardPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-8">
+    <div className="max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10 py-8">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">JobRecs – Bảng điều khiển</h1>
-          <p className="text-sm text-gray-600">Jobs • CV OCR • Phân tích • So khớp kỹ năng</p>
+          <h1 className="text-2xl font-bold">JobRecs – Dashboard</h1>
+          <p className="text-sm text-gray-600">Jobs • CV OCR • Analysis • Skill matching</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Nguồn việc làm:</span>
+          <span className="text-sm text-gray-600">Job source:</span>
           <div className="flex rounded-xl overflow-hidden border">
             <button
               onClick={() => setJobSource("remotive")}
@@ -33,10 +33,10 @@ export default function DashboardPage() {
             <button
               onClick={() => setJobSource("backend")}
               className={cn("px-3 py-1.5 text-sm", jobSource === "backend" ? "bg-gray-900 text-white" : "bg-white")}
-            >Backend của tôi</button>
+            >My Backend</button>
           </div>
           <button className="ml-2 px-3 py-1.5 text-sm rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-1">
-            <Settings2 className="w-4 h-4"/>Tuỳ chọn
+            <Settings2 className="w-4 h-4"/>Optional
           </button>
         </div>
       </header>
@@ -59,17 +59,17 @@ export default function DashboardPage() {
         <div className="col-span-12 lg:col-span-5 space-y-6">
           <CVUploadCard onOcrDone={(res)=>{ setOcr(res); setSelectedJob(null); }} allowDemo />
           <div className="border rounded-2xl p-4">
-            <SectionHeader icon={TrendingUp} title="Phân tích CV" desc="Điểm mạnh/yếu + ngành/role đề xuất" />
+            <SectionHeader icon={TrendingUp} title="Analyze CV" desc="Strengths/Weaknesses + Recommended industry/role" />
             <AnalysisPanel ocr={ocr} useBackend={true} />
             <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
-              Mẹo: Khi BE sẵn sàng, đặt useBackend=true để gọi endpoint thật.
+              NOTE: When bakend ready, set useBackend=true to call real endpoint.
             </div>
           </div>
 
 
           <div className="border rounded-2xl p-4">
-            <SectionHeader icon={TrendingUp} title="So khớp kỹ năng với job đã chọn" desc="Dựa trên tags job vs skills từ CV" />
+            <SectionHeader icon={TrendingUp} title="Match skills with selected jobs" desc="Based on job vs skills tags from CV" />
             <SkillMatchPanel ocrSkills={ocr?.skills || []} job={selectedJob} />
           </div>
         </div>

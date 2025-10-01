@@ -1,52 +1,17 @@
+// components/jobs/JobsPanel.tsx
 "use client";
-import { Filter, Loader2, Search, Briefcase } from "lucide-react";
+import { Loader2, Briefcase } from "lucide-react";
 import JobCard from "@/components/jobs/JobCard";
 import EmptyState from "@/components/common/EmptyState";
-import SectionHeader from "@/components/common/SectionHeader";
 import type { Job } from "@/types/job";
 import { fetchJobsFromBackend, fetchJobsFromRemotive } from "@/services/jobService";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import SuggestedJobsHeader from "@/components/jobs/SuggestedJobsHeader";
 
-function JobsFilters({ query, setQuery, location, setLocation, type, setType, seniority, setSeniority, minSalary, setMinSalary, onSearch }:{
-  query: string; setQuery: (v:string)=>void;
-  location: string; setLocation: (v:string)=>void;
-  type: string; setType: (v:string)=>void;
-  seniority: string; setSeniority: (v:string)=>void;
-  minSalary: number | undefined; setMinSalary: (v:number|undefined)=>void;
-  onSearch: ()=>void;
-}){
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-      <div className="md:col-span-2 flex">
-        <input
-          className="flex-1 border rounded-l-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-200"
-          placeholder="Từ khoá (data engineer, recsys, react)"
-          value={query}
-          onChange={(e)=>setQuery(e.target.value)}
-          onKeyDown={(e)=> e.key === "Enter" && onSearch()}
-        />
-        <button onClick={onSearch} className="px-4 rounded-r-xl border bg-gray-900 text-white hover:opacity-90"><Search className="w-4 h-4"/></button>
-      </div>
-      <input className="border rounded-xl px-3 py-2" placeholder="Địa điểm" value={location} onChange={e=>setLocation(e.target.value)}/>
-      <select className="border rounded-xl px-3 py-2" value={type} onChange={e=>setType(e.target.value)}>
-        <option value="">Loại hình</option>
-        <option value="remote">Remote</option>
-        <option value="hybrid">Hybrid</option>
-        <option value="onsite">Onsite</option>
-      </select>
-      <select className="border rounded-xl px-3 py-2" value={seniority} onChange={e=>setSeniority(e.target.value)}>
-        <option value="">Cấp bậc</option>
-        <option value="junior">Junior</option>
-        <option value="mid">Mid</option>
-        <option value="senior">Senior</option>
-      </select>
-      <input className="border rounded-xl px-3 py-2" type="number" min={0} placeholder="Lương tối thiểu" value={minSalary ?? ""} onChange={e=>setMinSalary(e.target.value? Number(e.target.value): undefined)}/>
-    </div>
-  );
-}
-
-export default function JobsPanel({ source, query, onQueryChange, ocrSkills, onSelectJob, selectedJobId }:{
+export default function JobsPanel({
+  source, query, onQueryChange, ocrSkills, onSelectJob, selectedJobId
+}:{
   source: "remotive" | "backend";
   query: string; onQueryChange: (s: string) => void;
   ocrSkills: string[];
@@ -64,7 +29,6 @@ export default function JobsPanel({ source, query, onQueryChange, ocrSkills, onS
 
   const [savedJobs, setSavedJobs] = useLocalStorage<string[]>("sav.jobs", []);
   const [page, setPage] = useState(1);
-
   const savedSet = useMemo(()=> new Set(savedJobs), [savedJobs]);
 
   const load = useCallback(async () => {
@@ -99,36 +63,49 @@ export default function JobsPanel({ source, query, onQueryChange, ocrSkills, onS
   const PAGE_SIZE = 12;
   const paged = filtered.slice(0, page * PAGE_SIZE);
 
-  const onSearch = () => load();
-
   const toggleSave = (id: string) => {
     setSavedJobs(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
   };
 
   return (
-    <div className="border rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
-        <SectionHeader icon={Search} title="Việc làm gợi ý" desc={source === "remotive" ? "Remotive (demo)" : "Backend của bạn"} />
-        <div className="text-xs text-gray-500 flex items-center gap-1"><Filter className="w-3 h-3"/>{filtered.length} kết quả</div>
-      </div>
-
-      <JobsFilters
-        query={query} setQuery={onQueryChange}
-        location={location} setLocation={setLocation}
-        type={type} setType={setType}
-        seniority={seniority} setSeniority={setSeniority}
-        minSalary={minSalary} setMinSalary={setMinSalary}
-        onSearch={onSearch}
+    <div className="border rounded-2xl p-4 md:p-6">
+      {/* NEW header + filters */}
+      <SuggestedJobsHeader
+        query={query}
+        location={location}
+        type={type}
+        seniority={seniority}
+        minSalary={minSalary !== undefined ? String(minSalary) : ""}
+        resultCount={filtered.length}
+        onChange={(k, v) => {
+          if (k === "reset") {
+            onQueryChange("");
+            setLocation("");
+            setType("");
+            setSeniority("");
+            setMinSalary(undefined);
+            load();
+            return;
+          }
+          if (k === "submit") { load(); return; }
+          if (k === "query") onQueryChange(v);
+          if (k === "location") setLocation(v);
+          if (k === "type") setType(v);
+          if (k === "seniority") setSeniority(v);
+          if (k === "minSalary") setMinSalary(v ? Number(v) : undefined);
+        }}
       />
 
       {loading && (
-        <div className="flex items-center gap-2 text-gray-600 mt-3"><Loader2 className="w-4 h-4 animate-spin"/> Đang tải job...</div>
+        <div className="flex items-center gap-2 text-gray-600 mt-4">
+          <Loader2 className="w-4 h-4 animate-spin"/> Loading jobs...
+        </div>
       )}
-      {error && <div className="text-sm text-red-600 mt-3">{error}</div>}
+      {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
 
       {!loading && !error && (
         paged.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
             {paged.map((j) => (
               <JobCard
                 key={j.id}
@@ -141,18 +118,22 @@ export default function JobsPanel({ source, query, onQueryChange, ocrSkills, onS
             ))}
           </div>
         ) : (
-          <EmptyState icon={Briefcase} title="Không có kết quả" desc="Thử đổi từ khóa hoặc bộ lọc."/>
+          <div className="mt-6">
+            <EmptyState icon={Briefcase} title="No results" desc="Try another filter or keyword."/>
+          </div>
         )
       )}
 
       {paged.length < filtered.length && (
-        <div className="flex justify-center mt-4">
-          <button className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50" onClick={()=>setPage(p=>p+1)}>Tải thêm</button>
+        <div className="flex justify-center mt-5">
+          <button className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50" onClick={()=>setPage(p=>p+1)}>Load more</button>
         </div>
       )}
 
       {ocrSkills.length > 0 && (
-        <p className="text-xs text-gray-500 mt-3">Gợi ý: chọn 1 job để xem <b>mức độ khớp kỹ năng</b> với CV của bạn ở panel bên phải.</p>
+        <p className="text-xs text-gray-500 mt-4">
+          Tip: Select a job to see <b>how well it matches your skills</b> in the right panel.
+        </p>
       )}
     </div>
   );

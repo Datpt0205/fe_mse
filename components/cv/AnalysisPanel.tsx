@@ -39,7 +39,7 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
   }
 
   useEffect(() => { if (ocr) run(); /* eslint-disable-next-line */ }, [ocr?.text, (ocr?.skills||[]).join(","), useBackend]);
-  if (!ocr) return <div className="text-gray-500 text-sm">Tải CV để xem phân tích chi tiết tại đây.</div>;
+  if (!ocr) return <div className="text-gray-500 text-sm">Download CV to see detailed analysis here.</div>;
 
   const actions = (
     <div className="flex items-center gap-2">
@@ -52,8 +52,8 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Row 1 */}
-      <AnalysisCard title="Điểm mạnh" actions={actions}>
-        {loading && <div className="text-gray-600 text-sm">Đang phân tích...</div>}
+      <AnalysisCard title="Strengths" actions={actions}>
+        {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
         {error && <div className="text-red-600 text-sm">{error}</div>}
         {!loading && analysis && (
           <ul className="space-y-2">
@@ -67,27 +67,34 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
         )}
       </AnalysisCard>
 
-      <AnalysisCard title="Cần cải thiện">
+      <AnalysisCard title="Needs improvement">
         {!loading && analysis && (
           <ul className="space-y-3">
             {analysis.weaknesses.map((w) => (
-              <li key={w.skill} className="text-sm">
-                <div className="font-medium">{w.skill} <span className="text-gray-600 font-normal">• khoảng cách {w.gap}</span></div>
-                {w.tip && <ExpandableText text={`Gợi ý: ${w.tip}`} lines={2} className="mt-0.5" />}
-              </li>
+            <li key={w.skill} className="text-sm">
+              <div className="font-medium">
+                {w.skill} <span className="text-gray-600 font-normal">• Gap {w.gap}</span>
+              </div>
+              {w.tip && <div className="text-xs text-gray-600 mt-0.5">{w.tip}</div>}
+              {w.url && (
+                <a href={w.url} target="_blank" rel="noreferrer" className="text-indigo-600 text-xs underline mt-1 inline-block">
+                  Recommended route
+                </a>
+              )}
+            </li>
             ))}
           </ul>
         )}
-        {loading && <div className="text-gray-600 text-sm">Đang phân tích...</div>}
+        {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
       </AnalysisCard>
 
       {/* Row 2 */}
-      <AnalysisCard title="Radar kỹ năng">
-        {!loading && analysis && <RadarPanel data={analysis.strengths.map(s => ({ skill: s.skill, score: s.score }))} />}
-        {loading && <div className="text-gray-600 text-sm">Đang phân tích...</div>}
+      <AnalysisCard title="Skill radar">
+        {!loading && analysis && <RadarPanel data={analysis.radar} />}
+        {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
       </AnalysisCard>
 
-      <AnalysisCard title="Ngành đề xuất">
+      <AnalysisCard title="Recommended industry">
         {!loading && analysis && (
           <div className="space-y-3">
             {analysis.industries.map((i) => (
@@ -104,7 +111,7 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
       </AnalysisCard>
 
       {/* Row 3 */}
-      <AnalysisCard title="Chức danh gợi ý">
+      <AnalysisCard title="Suggested title">
         {!loading && analysis?.roles && (
           <div className="space-y-3">
             {analysis.roles.map((r) => (
@@ -121,7 +128,7 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
       </AnalysisCard>
 
       {analysis?.explanations && analysis.explanations.length>0 && (
-        <AnalysisCard title="Vì sao có gợi ý này?">
+        <AnalysisCard title="Why this suggestion?">
           <ul className="list-disc list-inside space-y-1">
             {analysis.explanations.map((e,i)=> (
               <li key={i} className="text-sm">
