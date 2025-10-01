@@ -41,7 +41,7 @@ export async function analyzeCvOnBackend(payload: AnalyzePayload) {
   form.append("model_name", "gpt-4o-mini");
   form.append("raw_text", payload.text || "");
 
-  const res = await fetch(`${CV_BASE}/analyze-ui`, {
+  const res = await fetch(`${CV_BASE}/analyze-ui-heuristic`, {
     method: "POST",
     body: form,
   });
