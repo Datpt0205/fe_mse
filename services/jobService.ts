@@ -3,7 +3,7 @@ import { apiGet } from "@/lib/api";
 
 export async function fetchJobsFromRemotive(query: string): Promise<Job[]> {
   const data = await apiGet<any>(`/api/remotive?q=${encodeURIComponent(query || "software")}`);
-  const jobs: Job[] = (data?.jobs || []).slice(0, 50).map((j: any) => ({
+  const jobs: Job[] = (data?.jobs || []).slice(0, 500).map((j: any) => ({
     id: String(j.id),
     title: j.title,
     company: j.company_name,

@@ -3,3 +3,17 @@
 @tailwind utilities;
 
 html, body, #__next { height: 100%; }
+@media print {
+  /* Nền trắng, bỏ shadow/bo tròn để đỡ tốn mực */
+  .print\:flat * {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+  }
+
+  /* Ẩn mọi thứ có class print:hidden (đã gán cho nút Export) */
+  .print\:hidden { display: none !important; }
+
+  /* Tránh gãy card giữa trang */
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+}

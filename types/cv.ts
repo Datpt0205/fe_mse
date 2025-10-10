@@ -12,7 +12,7 @@ export type CvAnalysis = {
   roles: UiRole[];
   explanations?: string[];
   overall_score?: number;
-  radar: RadarPoint[]; // NEW: radar động
+  radar?: { axis: string; score: number }[];
 };
 
 export type OcrResult = { text: string; skills: string[] };

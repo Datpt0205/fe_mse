@@ -60,7 +60,7 @@ export default function SuggestedJobsHeader({
           </div>
 
           {/* Type */}
-          <div className="col-span-1">
+          {/* <div className="col-span-1">
             <div className="relative">
               <select
                 value={type}
@@ -78,7 +78,7 @@ export default function SuggestedJobsHeader({
               </select>
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             </div>
-          </div>
+          </div> */}
 
           {/* Seniority */}
           {/* <div className="col-span-1">
@@ -106,7 +106,7 @@ export default function SuggestedJobsHeader({
               <input
                 value={minSalary}
                 onChange={(e)=>onChange("minSalary", e.target.value)}
-                placeholder="Min salary (USD)"
+                placeholder="Min salary"
                 inputMode="numeric"
                 className="w-full bg-transparent outline-none placeholder:text-gray-400"
               />
