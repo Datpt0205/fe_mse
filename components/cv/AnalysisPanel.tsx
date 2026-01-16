@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Star } from "lucide-react";
 import type { CvAnalysis, OcrResult } from "@/types/cv";
-import { analyzeCvOnBackend, mockAnalyzeCv } from "@/services/cvService";
+import { analyzeCvOnBackend, mockAnalyzeCv, recommendJobOnBackend } from "@/services/cvService";
 import RadarPanel from "@/components/cv/RadarPanel";
 import ExpandableText from "@/components/common/ExpandableText";
 import { useReactToPrint } from "react-to-print";
@@ -21,19 +21,23 @@ function AnalysisCard({
   );
 }
 
+type RecommendResult = { title: string; description: string; skills_used: string[]; raw?: string };
+
 export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrResult | null; useBackend?: boolean }) {
   const [analysis, setAnalysis] = useState<CvAnalysis | null>(null);
+  const [recommend, setRecommend] = useState<RecommendResult | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [loadingRec, setLoadingRec] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ====== PRINT SETUP ======
   const panelRef = useRef<HTMLDivElement>(null);
   const handleExport = useReactToPrint({
-    contentRef: panelRef,   // chỉ in phần có ref
-    documentTitle: "cv-analysis",      // tên file khi Save as PDF
+    contentRef: panelRef,
+    documentTitle: "cv-analysis",
   });
 
-  // ====== RADAR SOURCE (giữ như bạn đang dùng) ======
   const radarData =
     analysis?.radar?.length
       ? analysis.radar.map(r => ({ label: r.axis, value: Math.max(0, Math.min(100, Number(r.score) || 0)) }))
@@ -41,17 +45,47 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
 
   async function run() {
     if (!ocr) return;
-    setLoading(true); setError(null); setAnalysis(null);
+    setError(null);
+    setAnalysis(null);
+    setRecommend(null);
+
+    const rawText = ocr.text ?? "";
+    const skillsFromOcr = ocr.skills ?? [];
+
     try {
-      const payload = { text: ocr.text ?? "", skills: ocr.skills ?? [] };
-      const res = useBackend ? await analyzeCvOnBackend(payload) : await mockAnalyzeCv(payload);
+      if (!useBackend) {
+        setLoading(true);
+        const res = await mockAnalyzeCv({ text: rawText, skills: skillsFromOcr });
+        setAnalysis(res);
+        return;
+      }
+
+      // ===== Backend mode: 2-step =====
+      setLoadingRec(true);
+      const rec = await recommendJobOnBackend(rawText);
+      setRecommend(rec);
+      setLoadingRec(false);
+
+      setLoading(true);
+      const res = await analyzeCvOnBackend({
+        text: rawText,
+        skills: skillsFromOcr,
+        recommend: { title: rec.title, description: rec.description },
+      });
       setAnalysis(res);
-    } catch (e:any) {
+    } catch (e: any) {
       setError(e?.message || "Lỗi phân tích CV");
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+      setLoadingRec(false);
+    }
   }
 
-  useEffect(() => { if (ocr) run(); /* eslint-disable-next-line */ }, [ocr?.text, (ocr?.skills||[]).join(","), useBackend]);
+  useEffect(() => {
+    if (ocr) run();
+    // eslint-disable-next-line
+  }, [ocr?.text, (ocr?.skills || []).join(","), useBackend]);
+
   if (!ocr) return <div className="text-gray-500 text-sm">Download CV to see detailed analysis here.</div>;
 
   const actions = (
@@ -61,23 +95,59 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
         className="px-3 py-1.5 text-xs rounded-lg border bg-white hover:bg-gray-50 flex items-center gap-1 print:hidden"
         title="Export only this analysis section"
       >
-        <Download className="w-3 h-3"/> Export
+        <Download className="w-3 h-3" /> Export
       </button>
     </div>
   );
 
   return (
-    // Chỉ phần bên trong div này sẽ được in
     <div ref={panelRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Row 1 */}
-      <AnalysisCard title="Strengths" actions={actions}>
+      {/* NEW: Jobfit Recommendation */}
+      {useBackend && (
+        <AnalysisCard title="Job Recommendation" actions={actions} className="md:col-span-2">
+          {loadingRec && <div className="text-gray-600 text-sm">Generating recommendation...</div>}
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+          {!loadingRec && recommend && (
+            <div className="space-y-3">
+              <div>
+                <div className="text-sm text-gray-500">Suggested title</div>
+                <div className="text-lg font-semibold">{recommend.title || "N/A"}</div>
+              </div>
+
+              <div>
+                <div className="text-sm text-gray-500">Suggested description</div>
+                <ExpandableText text={String(recommend.description || "")} lines={5} />
+              </div>
+
+              {recommend.skills_used?.length > 0 && (
+                <div>
+                  <div className="text-sm text-gray-500">Skills detected</div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {recommend.skills_used.slice(0, 24).map((s) => (
+                      <span key={s} className="text-xs px-2 py-1 rounded-full border bg-white">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </AnalysisCard>
+      )}
+
+      {/* Existing cards */}
+      <AnalysisCard title="Strengths" actions={!useBackend ? actions : undefined}>
         {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
         {error && <div className="text-red-600 text-sm">{error}</div>}
         {!loading && analysis && (
           <ul className="space-y-2">
             {analysis.strengths.map((s) => (
               <li key={s.skill} className="flex items-center justify-between">
-                <span className="text-gray-800 flex items-center gap-2"><Star className="w-4 h-4 text-amber-500"/>{s.skill}</span>
+                <span className="text-gray-800 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500" />
+                  {s.skill}
+                </span>
                 <span className="text-gray-600 text-sm">{s.score}/100</span>
               </li>
             ))}
@@ -106,7 +176,6 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
         {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
       </AnalysisCard>
 
-      {/* Row 2 */}
       <AnalysisCard title="Skill radar">
         {!loading && analysis && <RadarPanel data={radarData} />}
         {loading && <div className="text-gray-600 text-sm">Analyzing...</div>}
@@ -128,8 +197,9 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
         )}
       </AnalysisCard>
 
-      {/* Row 3 */}
-      <AnalysisCard title="Suggested title">
+      {/* Nếu muốn “Suggested title” hiển thị theo OpenAI roles thì giữ,
+          nhưng để tránh trùng nghĩa, đổi title thành “Other suitable roles (AI)” */}
+      <AnalysisCard title="Other suitable roles (AI)">
         {!loading && analysis?.roles && (
           <div className="space-y-3">
             {analysis.roles.map((r) => (
@@ -145,10 +215,10 @@ export default function AnalysisPanel({ ocr, useBackend = false }: { ocr: OcrRes
         )}
       </AnalysisCard>
 
-      {analysis?.explanations && analysis.explanations.length>0 && (
+      {analysis?.explanations && analysis.explanations.length > 0 && (
         <AnalysisCard title="Why this suggestion?">
           <ul className="list-disc list-inside space-y-1">
-            {analysis.explanations.map((e,i)=> (
+            {analysis.explanations.map((e, i) => (
               <li key={i} className="text-sm">
                 <ExpandableText text={String(e)} lines={3} />
               </li>

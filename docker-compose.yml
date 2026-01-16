@@ -6,3 +6,7 @@ services:
     - "3000:3000"
     environment:
     - BACKEND_BASE_URL=http://localhost:8686
+networks:
+  public-network:
+    external: true
+    name: mse_net

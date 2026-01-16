@@ -9,7 +9,7 @@ type AnalyzePayload = { text: string; skills?: string[] };
 // client/src/services/cvService.ts
 const API = (process.env.NEXT_PUBLIC_API || "").replace(/\/+$/, "");
 console.log("API", API)
-const CV_BASE = `${API}/api/v1/cv`;
+const CV_BASE = `${API}/api/v1`;
 
 export async function uploadCvToBackend(file: File) {
   const form = new FormData();
@@ -33,28 +33,35 @@ export async function uploadCvToBackend(file: File) {
   }
 }
 
+export async function recommendJobOnBackend(raw_text: string) {
+  const form = new FormData();
+  form.append("raw_text", raw_text || "");
 
-/** Phân tích CV (raw text) -> UI payload cho màn hình Analysis */
-export async function analyzeCvOnBackend(payload: AnalyzePayload) {
+  const res = await fetch(`${CV_BASE}/recommend`, { method: "POST", body: form });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Recommend failed: ${res.status} ${res.statusText} ${t}`);
+  }
+  return res.json(); // { title, description, skills_used, raw }
+}
+
+
+export async function analyzeCvOnBackend(payload: AnalyzePayload & { recommend?: { title?: string; description?: string } }) {
   const form = new FormData();
   form.append("provider_type", "openai");
   form.append("model_name", "gpt-4o-mini");
   form.append("raw_text", payload.text || "");
 
-  const res = await fetch(`${CV_BASE}/analyze-ui`, {
-    method: "POST",
-    body: form,
-  });
+  // thêm recommend để phân tích sát mục tiêu nghề hơn
+  form.append("recommend_title", payload.recommend?.title || "");
+  form.append("recommend_description", payload.recommend?.description || "");
 
+  const res = await fetch(`${CV_BASE}/analyze-ui`, { method: "POST", body: form });
   if (!res.ok) {
-    let msg = "Analyze failed";
-    try {
-      const t = await res.text();
-      if (t) msg = t;
-    } catch {}
-    throw new Error(msg);
+    const t = await res.text().catch(() => "");
+    throw new Error(t || "Analyze failed");
   }
-  // { status, message, data } -> trả luôn data cho component
   const json = await res.json();
   return json.data;
 }
