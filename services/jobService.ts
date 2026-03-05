@@ -11,12 +11,20 @@ export async function fetchJobsFromRemotive(query: string): Promise<Job[]> {
     url: j.url,
     published_at: j.publication_date,
     salary: j.salary || undefined,
-    tags: j.tags || []
+    tags: j.tags || [],
   }));
   return jobs;
 }
 
-export async function fetchJobsFromBackend(params: { q: string; location?: string; type?: string; seniority?: string; minSalary?: number }): Promise<Job[]> {
+export async function fetchJobsFromBackend(params: {
+  q: string;
+  location?: string;
+  type?: string;
+  seniority?: string;
+  minSalary?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<Job[]> {
   const qs = new URLSearchParams();
   if (params.q) qs.set("q", params.q);
   if (params.location) qs.set("location", params.location);
@@ -24,6 +32,9 @@ export async function fetchJobsFromBackend(params: { q: string; location?: strin
   if (params.seniority) qs.set("seniority", params.seniority);
   if (params.minSalary) qs.set("minSalary", String(params.minSalary));
 
+  qs.set("limit", String(params.limit ?? 50));
+  qs.set("offset", String(params.offset ?? 0));
+
   const data = await apiGet<{ jobs: Job[] }>(`/api/jobs?${qs.toString()}`);
-  return data.jobs;
+  return data.jobs || [];
 }

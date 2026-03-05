@@ -1,7 +1,6 @@
 // components/jobs/SuggestedJobsHeader.tsx
 "use client";
-import { Search, SlidersHorizontal, MapPin, Briefcase, GraduationCap, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/api";
+import { Search, SlidersHorizontal, MapPin, Briefcase, Info } from "lucide-react";
 
 type Props = {
   query: string;
@@ -17,114 +16,104 @@ export default function SuggestedJobsHeader({
   query, location="", type="", seniority="", minSalary="", resultCount=0, onChange
 }: Props) {
   return (
-    <section className="rounded-2xl border bg-white px-5 py-5 md:px-8 md:py-6">
-      {/* top row */}
+    <section>
+      {/* Top row */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl md:text-2xl font-semibold tracking-tight">Suggested jobs</h2>
-          <p className="text-gray-500 text-sm">Remotive (demo)</p>
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-[hsl(220,20%,14%)]">
+            Suggested Jobs
+          </h2>
+          <p className="text-[hsl(220,10%,56%)] text-sm mt-0.5">
+            Personalized recommendations based on your profile
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600">
-          <SlidersHorizontal className="w-4 h-4" />
-          <span><span className="font-medium">{resultCount}</span> results</span>
+        <div className="flex items-center gap-2 text-sm text-[hsl(220,10%,42%)]">
+          <div className="flex items-center gap-1.5 chip chip-primary">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span className="font-semibold">{resultCount}</span>
+            <span>results</span>
+          </div>
         </div>
       </div>
 
-      {/* search + filters */}
-      <div className="mt-4 md:mt-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* Rubric Legend */}
+      <details className="mt-3 group/legend">
+        <summary className="text-xs text-[hsl(220,10%,56%)] cursor-pointer hover:text-[hsl(226,70%,55%)] transition-colors select-none flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5" />
+          <span>What do the colored dots mean?</span>
+        </summary>
+        <div className="mt-2 p-3 bg-[hsl(220,20%,97%)] rounded-xl border border-[hsl(220,20%,90%)] text-xs space-y-2">
+          {/* Color scale */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+              <span className="text-[hsl(220,10%,42%)]">Good fit (7-10)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+              <span className="text-[hsl(220,10%,42%)]">Moderate (4-6)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />
+              <span className="text-[hsl(220,10%,42%)]">Weak fit (0-3)</span>
+            </div>
+          </div>
+          {/* Dimensions */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[hsl(220,10%,50%)]">
+            <span>🛠 Skills</span>
+            <span>🏭 Industry</span>
+            <span>📊 Seniority</span>
+            <span>💰 Salary</span>
+            <span>🎁 Benefits</span>
+          </div>
+          <p className="text-[10px] text-[hsl(220,10%,60%)] leading-relaxed">
+            Each dot represents how well the job matches your profile in that dimension. Hover over any dot for details.
+          </p>
+        </div>
+      </details>
+
+      {/* Search + filters */}
+      <div className="mt-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Query */}
           <div className="col-span-1 lg:col-span-2">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5 focus-within:ring-2 focus-within:ring-gray-900/10">
-              <Search className="w-4 h-4 text-gray-500" />
+            <div className="input-field">
+              <Search className="w-4 h-4 text-[hsl(220,10%,56%)] shrink-0" />
               <input
                 value={query}
                 onChange={(e) => onChange("query", e.target.value)}
                 placeholder="Search by keyword (e.g. software, data, QA...)"
-                className="w-full bg-transparent outline-none placeholder:text-gray-400"
+                className="w-full bg-transparent outline-none placeholder:text-[hsl(220,10%,70%)] text-sm"
               />
             </div>
           </div>
-
-          {/* Location */}
-          <div className="col-span-1">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5 focus-within:ring-2 focus-within:ring-gray-900/10">
-              <MapPin className="w-4 h-4 text-gray-500" />
-              <input
-                value={location}
-                onChange={(e)=>onChange("location", e.target.value)}
-                placeholder="Location"
-                className="w-full bg-transparent outline-none placeholder:text-gray-400"
-              />
-            </div>
-          </div>
-
-          {/* Type */}
-          {/* <div className="col-span-1">
-            <div className="relative">
-              <select
-                value={type}
-                onChange={(e)=>onChange("type", e.target.value)}
-                className={cn(
-                  "w-full appearance-none rounded-xl border bg-white px-3 py-2.5 pr-8",
-                  "focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-                )}
-              >
-                <option value="">Type</option>
-                <option value="full_time">Full-time</option>
-                <option value="part_time">Part-time</option>
-                <option value="contract">Contract</option>
-                <option value="internship">Internship</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            </div>
-          </div> */}
-
-          {/* Seniority */}
-          {/* <div className="col-span-1">
-            <div className="relative">
-              <select
-                value={seniority}
-                onChange={(e)=>onChange("seniority", e.target.value)}
-                className="w-full appearance-none rounded-xl border bg-white px-3 py-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
-              >
-                <option value="">Experience</option>
-                <option value="junior">Junior</option>
-                <option value="mid">Mid</option>
-                <option value="senior">Senior</option>
-                <option value="lead">Lead</option>
-              </select>
-              <GraduationCap className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            </div>
-          </div> */}
 
           {/* Min salary */}
           <div className="col-span-1">
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5 focus-within:ring-2 focus-within:ring-gray-900/10">
-              <Briefcase className="w-4 h-4 text-gray-500" />
+            <div className="input-field">
+              <Briefcase className="w-4 h-4 text-[hsl(220,10%,56%)] shrink-0" />
               <input
                 value={minSalary}
                 onChange={(e)=>onChange("minSalary", e.target.value)}
                 placeholder="Min salary"
                 inputMode="numeric"
-                className="w-full bg-transparent outline-none placeholder:text-gray-400"
+                className="w-full bg-transparent outline-none placeholder:text-[hsl(220,10%,70%)] text-sm"
               />
             </div>
           </div>
         </div>
 
-        {/* actions */}
+        {/* Actions */}
         <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <button
             onClick={()=>onChange("submit","1")}
-            className="rounded-xl bg-gray-900 text-white px-4 py-2.5 hover:opacity-90 transition"
+            className="btn-primary text-sm"
           >
             Apply filters
           </button>
           <button
             onClick={()=>onChange("reset","1")}
-            className="rounded-xl border px-4 py-2.5 bg-white hover:bg-gray-50 transition"
+            className="btn-ghost text-sm"
           >
             Reset
           </button>

@@ -2,18 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========== Design System =========== */
+:root {
+  /* Primary — soft indigo-blue */
+  --clr-primary: 226 70% 55%;
+  --clr-primary-light: 226 85% 96%;
+  --clr-primary-dark: 226 65% 42%;
+
+  /* Accent — warm amber */
+  --clr-accent: 38 92% 55%;
+  --clr-accent-light: 38 100% 94%;
+
+  /* Success / Match — teal */
+  --clr-success: 160 60% 45%;
+  --clr-success-light: 160 60% 94%;
+
+  /* Neutral surface */
+  --clr-surface: 220 14% 97%;
+  --clr-surface-alt: 220 14% 94%;
+  --clr-border: 220 14% 88%;
+  --clr-muted: 220 10% 56%;
+  --clr-text: 220 20% 14%;
+  --clr-text-secondary: 220 10% 42%;
+}
+
 html, body, #__next { height: 100%; }
+
+body {
+  color: hsl(var(--clr-text));
+  background-color: hsl(var(--clr-surface));
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* =========== Utility classes =========== */
+.card-elevated {
+  background: white;
+  border: 1px solid hsl(var(--clr-border));
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-elevated:hover {
+  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08), 0 2px 4px -1px rgb(0 0 0 / 0.04);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chip-primary {
+  background: hsl(var(--clr-primary-light));
+  color: hsl(var(--clr-primary-dark));
+}
+
+.chip-accent {
+  background: hsl(var(--clr-accent-light));
+  color: hsl(38 70% 35%);
+}
+
+.chip-success {
+  background: hsl(var(--clr-success-light));
+  color: hsl(160 50% 28%);
+}
+
+.chip-neutral {
+  background: hsl(var(--clr-surface-alt));
+  color: hsl(var(--clr-text-secondary));
+}
+
+.btn-primary {
+  background: hsl(var(--clr-primary));
+  color: white;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: hsl(var(--clr-primary-dark));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsl(var(--clr-primary) / 0.3);
+}
+
+.btn-ghost {
+  background: white;
+  color: hsl(var(--clr-text-secondary));
+  border-radius: 0.75rem;
+  padding: 0.6rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  border: 1px solid hsl(var(--clr-border));
+}
+
+.btn-ghost:hover {
+  background: hsl(var(--clr-surface));
+  color: hsl(var(--clr-text));
+}
+
+.input-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--clr-border));
+  padding: 0.6rem 0.75rem;
+  background: white;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus-within {
+  border-color: hsl(var(--clr-primary));
+  box-shadow: 0 0 0 3px hsl(var(--clr-primary) / 0.1);
+}
+
+/* =========== Print =========== */
 @media print {
-  /* Nền trắng, bỏ shadow/bo tròn để đỡ tốn mực */
   .print\:flat * {
     box-shadow: none !important;
     border-radius: 0 !important;
     background: white !important;
   }
-
-  /* Ẩn mọi thứ có class print:hidden (đã gán cho nút Export) */
   .print\:hidden { display: none !important; }
-
-  /* Tránh gãy card giữa trang */
   .avoid-break { break-inside: avoid; page-break-inside: avoid; }
 }

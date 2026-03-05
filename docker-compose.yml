@@ -4,7 +4,11 @@ services:
     container_name: jobrecs-web
     ports:
     - "3000:3000"
+    volumes:
+      - ./client:/app
+      - ./data:/data:ro
     environment:
+    - DATA_DIR=/data
     - BACKEND_BASE_URL=http://localhost:8686
 networks:
   public-network:

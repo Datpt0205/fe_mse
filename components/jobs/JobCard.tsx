@@ -1,47 +1,149 @@
-"use client";
-import { Bookmark, BookmarkCheck, Building2, ExternalLink, MapPin, Star } from "lucide-react";
-import type { Job } from "@/types/job";
+import type { Job, RubricScores } from "@/types/job";
+import { MapPin, DollarSign, Building2 } from "lucide-react";
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 mr-2 mb-2">
-      {children}
-    </span>
-  );
+type Props = {
+  job: Job;
+  selected?: boolean;
+  onSelect?: (job: Job) => void;
+  saved?: boolean;
+  onToggleSave?: () => void;
+};
+
+/** Cycle chip colors for visual variety */
+const chipStyles = ["chip-primary", "chip-accent", "chip-success", "chip-neutral"] as const;
+
+/** Rubric dimensions to display as dots */
+const RUBRIC_KEYS: { key: keyof RubricScores; label: string; emoji: string }[] = [
+  { key: "skill_fit", label: "Skills", emoji: "🛠" },
+  { key: "industry_fit", label: "Industry", emoji: "🏭" },
+  { key: "seniority_fit", label: "Seniority", emoji: "📊" },
+  { key: "salary_fit", label: "Salary", emoji: "💰" },
+  { key: "benefit_fit", label: "Benefits", emoji: "🎁" },
+];
+
+/** Score 0-10 → color class */
+function scoreColor(score: number): string {
+  if (score >= 7) return "bg-emerald-500"; // Good fit
+  if (score >= 4) return "bg-amber-400";   // Moderate fit
+  return "bg-red-400";                      // Weak fit
 }
 
-export default function JobCard({ job, selected, onSelect, saved, onToggleSave }:{
-  job: Job; selected?: boolean; onSelect?: (j: Job)=>void; saved?: boolean; onToggleSave?: ()=>void
-}){
-  const matchBadge = job.tags?.slice(0,3) || [];
+/** Score 0-10 → ring glow on hover */
+function scoreRing(score: number): string {
+  if (score >= 7) return "ring-emerald-300";
+  if (score >= 4) return "ring-amber-200";
+  return "ring-red-200";
+}
+
+export default function JobCard({
+  job,
+  selected = false,
+  onSelect,
+  saved = false,
+  onToggleSave,
+}: Props) {
+  const chips = (job.tags?.length ? job.tags : job.skills)?.slice(0, 6) ?? [];
+
+  const hasSalary = job.salary && job.salary !== "Unknown";
+  const hasLocation = job.location && job.location !== "Unknown";
+  const rubric = job.rubric;
+
   return (
-    <div className={`border rounded-xl p-4 hover:shadow-sm transition cursor-pointer ${selected ? "ring-2 ring-gray-900" : ""}`} onClick={() => onSelect?.(job)}>
-      <div className="flex justify-between items-start gap-4">
-        <div className="min-w-0">
-          <h3 className="font-semibold text-gray-900 leading-tight truncate flex items-center gap-2">
-            {job.title} {selected && <Star className="w-4 h-4 text-amber-500"/>}
-          </h3>
-          <p className="text-sm text-gray-600 mt-0.5 flex items-center gap-2">
-            <Building2 className="w-4 h-4"/> {job.company}
-            <MapPin className="w-4 h-4 ml-2"/> {job.location}
-          </p>
-          {matchBadge.length>0 && (
-            <div className="mt-2 flex flex-wrap">{matchBadge.map((t) => <Pill key={t}>{t}</Pill>)}</div>
-          )}
-        </div>
-        <div className="text-right min-w-[130px]">
-          {job.published_at && <p className="text-xs text-gray-500">{new Date(job.published_at).toLocaleDateString()}</p>}
-          {job.salary && <p className="text-sm font-medium text-emerald-700">{job.salary}</p>}
-          <div className="flex items-center justify-end gap-2 mt-2">
-            <a className="text-xs underline text-gray-700 flex items-center gap-1" href={job.url} target="_blank" rel="noreferrer" onClick={(e)=>e.stopPropagation()}>
-              Link <ExternalLink className="w-3 h-3"/>
-            </a>
-            <button onClick={(e)=>{e.stopPropagation(); onToggleSave?.();}} className="p-1 rounded hover:bg-gray-100" aria-label="save">
-              {saved ? <BookmarkCheck className="w-4 h-4 text-emerald-600"/> : <Bookmark className="w-4 h-4"/>}
-            </button>
+    <div
+      className={[
+        "card-elevated p-4 cursor-pointer group",
+        selected
+          ? "ring-2 ring-[hsl(226,70%,55%)] border-transparent"
+          : "hover:-translate-y-0.5",
+      ].join(" ")}
+      onClick={() => onSelect?.(job)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onSelect?.(job);
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold leading-snug truncate text-[hsl(220,20%,14%)] group-hover:text-[hsl(226,70%,55%)] transition-colors">
+            {job.title}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 text-sm text-[hsl(220,10%,42%)]">
+            <Building2 className="w-3.5 h-3.5 shrink-0 opacity-50" />
+            <span className="truncate">{job.company || "Unknown"}</span>
+            {hasLocation && (
+              <>
+                <span className="opacity-30">•</span>
+                <MapPin className="w-3.5 h-3.5 shrink-0 opacity-50" />
+                <span className="truncate">{job.location}</span>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Salary badge */}
+        <div className="shrink-0">
+          {hasSalary ? (
+            <div className="chip chip-success">
+              <DollarSign className="w-3 h-3 mr-0.5" />
+              {job.salary}
+            </div>
+          ) : (
+            <div className="chip chip-neutral text-[0.65rem]">
+              Negotiable
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Rubric fit dots */}
+      {rubric && (
+        <div className="mt-3 flex items-center gap-1">
+          {RUBRIC_KEYS.map(({ key, label, emoji }) => {
+            const score = rubric[key] ?? 0;
+            return (
+              <div
+                key={key}
+                className="relative group/dot"
+              >
+                <div
+                  className={`w-3 h-3 rounded-full ${scoreColor(score)} transition-all duration-200 hover:scale-150 hover:ring-2 ${scoreRing(score)} cursor-default`}
+                />
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[10px] font-medium text-white bg-gray-800 rounded-md whitespace-nowrap opacity-0 group-hover/dot:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
+                  {emoji} {label}: {score}/10
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-gray-800" />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Final score badge */}
+          {rubric.final_score != null && (
+            <div className={`ml-1.5 px-1.5 py-0.5 text-[10px] font-bold rounded-md leading-none ${
+              rubric.final_score >= 7
+                ? "bg-emerald-100 text-emerald-700"
+                : rubric.final_score >= 4
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-red-100 text-red-700"
+            }`}>
+              {rubric.final_score}/10
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Skill chips */}
+      {chips.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {chips.map((t, i) => (
+            <span key={t} className={`chip ${chipStyles[i % chipStyles.length]}`}>
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

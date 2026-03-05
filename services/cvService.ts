@@ -8,7 +8,6 @@ type AnalyzePayload = { text: string; skills?: string[] };
 
 // client/src/services/cvService.ts
 const API = (process.env.NEXT_PUBLIC_API || "").replace(/\/+$/, "");
-console.log("API", API)
 const CV_BASE = `${API}/api/v1`;
 
 export async function uploadCvToBackend(file: File) {
@@ -101,4 +100,23 @@ export async function mockAnalyzeCv(payload: { text: string; skills: string[] })
     ],
     radar, // <-- thêm radar vào kết quả mock
   };
+}
+
+export async function extractProfileFromBackend(
+  rawText: string,
+  detailed: boolean = false
+): Promise<any> {
+  const res = await fetch(`${CV_BASE}/extract-profile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ raw_text: rawText, detailed }),
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Extract profile failed: ${res.status} ${t}`);
+  }
+
+  const json = await res.json();
+  return json.data;
 }

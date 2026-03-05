@@ -10,12 +10,14 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   async function onSelect(file?: File | null) {
     if (!file) return;
     setError(null); setUploading(true);
     try {
       const res = await uploadCvToBackend(file);
+      setFileName(file.name); // Save filename
       onOcrDone(res);
     } catch {
       setError("Không thể upload/OCR. Hãy dùng DEMO nếu BE chưa sẵn sàng.");
@@ -50,14 +52,16 @@ export default function CVUploadCard({ onOcrDone, allowDemo = true }: { onOcrDon
           <button type="button" onClick={clickFile} className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-2">
             <FileText className="w-4 h-4"/> Select CV
           </button>
-          {allowDemo && (
-            <button type="button" onClick={demoOcr} className="px-4 py-2 rounded-xl border bg-gray-900 text-white hover:opacity-90">
-              DEMO OCR
-            </button>
-          )}
           {uploading && <span className="inline-flex items-center gap-2 text-gray-600"><Loader2 className="w-4 h-4 animate-spin"/> Đang xử lý...</span>}
         </div>
       </div>
+
+      {fileName && (
+        <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <FileText className="w-4 h-4 text-green-700" />
+          <span className="text-sm text-green-900 font-medium">{fileName}</span>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
     </div>
