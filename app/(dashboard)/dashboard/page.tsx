@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, BriefcaseBusiness, Loader2, Sparkles, TrendingUp, Upload, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import AnalysisPanel from "@/components/cv/AnalysisPanel";
+import CVUploadCard from "@/components/cv/CVUploadCard";
+import SkillMatchPanel from "@/components/cv/SkillMatchPanel";
 import SectionHeader from "@/components/common/SectionHeader";
 import JobsPanel from "@/components/jobs/JobsPanel";
-import CVUploadCard from "@/components/cv/CVUploadCard";
-import AnalysisPanel from "@/components/cv/AnalysisPanel";
-import SkillMatchPanel from "@/components/cv/SkillMatchPanel";
-import { AlertTriangle, TrendingUp, User, Loader2, Sparkles } from "lucide-react";
+import { cn } from "@/lib/api";
+import { buildRecommendPayload, fetchCachedRecommendations, requestRecommend } from "@/services/recommendService";
 import type { OcrResult } from "@/types/cv";
 import type { Job } from "@/types/job";
-import { cn } from "@/lib/api";
 import type { UserProfile } from "@/types/profile";
-import { useRouter } from "next/navigation";
-import { fetchCachedRecommendations, buildRecommendPayload, requestRecommend } from "@/services/recommendService";
 
 const DEFAULT_PROFILE: UserProfile = {
   id: "demo_user",
@@ -23,8 +24,10 @@ const DEFAULT_PROFILE: UserProfile = {
   companySize: undefined,
   companySpecialities: [],
 };
+
 const PROFILE_KEY = "demo.profile.v1";
 const ANALYSIS_OCR_KEY = "demo.dashboard.analysisOcr.v1";
+const RECS_STORAGE_KEY = "demo.dashboard.recs.v1";
 
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
@@ -48,9 +51,8 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [industries, setIndustries] = useState<Industry[]>([]);
 
-  // Recommend state
   const [recommendedJobs, setRecommendedJobs] = useState<Job[] | null>(null);
-  const [recsLoading, setRecsLoading] = useState(true); // start true → wait for cache check before JobsPanel fetches
+  const [recsLoading, setRecsLoading] = useState(true);
   const [recsError, setRecsError] = useState<string | null>(null);
   const [isFallback, setIsFallback] = useState(false);
   const [bgRecommendRunning, setBgRecommendRunning] = useState(() => {
@@ -64,22 +66,18 @@ export default function DashboardPage() {
     return m;
   }, [industries]);
 
-  // Load profile + industries on mount
   useEffect(() => {
-    // Load profile from server
     (async () => {
       try {
         const res = await fetch("/api/profile", { cache: "no-store" });
         const data = await res.json();
         if (data?.profile) setProfile({ ...DEFAULT_PROFILE, ...data.profile });
       } catch {
-        // fallback to localStorage
         const p = safeParse<UserProfile>(localStorage.getItem(PROFILE_KEY), DEFAULT_PROFILE);
         setProfile(p);
       }
     })();
 
-    // Load industries for industryMap
     (async () => {
       try {
         const res = await fetch("/api/meta/industries");
@@ -90,10 +88,10 @@ export default function DashboardPage() {
       } catch {}
     })();
 
-    // Analysis OCR persistence
-    const isReload = performance.getEntriesByType("navigation").some(
-      (nav) => (nav as PerformanceNavigationTiming).type === "reload"
-    ) || !sessionStorage.getItem("dashboard_session_active");
+    const isReload =
+      performance.getEntriesByType("navigation").some(
+        (nav) => (nav as PerformanceNavigationTiming).type === "reload"
+      ) || !sessionStorage.getItem("dashboard_session_active");
 
     if (isReload) {
       sessionStorage.removeItem(ANALYSIS_OCR_KEY);
@@ -104,14 +102,12 @@ export default function DashboardPage() {
     if (savedOcr) setAnalysisOcr(savedOcr);
   }, []);
 
-  // Save analysisOcr to sessionStorage
   useEffect(() => {
     if (analysisOcr) {
       sessionStorage.setItem(ANALYSIS_OCR_KEY, JSON.stringify(analysisOcr));
     }
   }, [analysisOcr]);
 
-  // Listen for profile changes from other tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === PROFILE_KEY) {
@@ -123,9 +119,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const RECS_STORAGE_KEY = "demo.dashboard.recs.v1";
-
-  // ======= READ CACHED RECOMMENDATIONS =======
   const loadCachedRecs = async (signal?: AbortSignal) => {
     setRecsLoading(true);
     setRecsError(null);
@@ -137,16 +130,15 @@ export default function DashboardPage() {
       if (Array.isArray(recs) && recs.length > 0) {
         setRecommendedJobs(recs);
         setIsFallback(false);
-        // Persist to sessionStorage for stale-while-revalidate
-        try { sessionStorage.setItem(RECS_STORAGE_KEY, JSON.stringify(recs)); } catch {}
+        try {
+          sessionStorage.setItem(RECS_STORAGE_KEY, JSON.stringify(recs));
+        } catch {}
       } else {
-        // DON'T clear existing recommendedJobs — keep showing stale data
         setIsFallback(true);
       }
     } catch (e: any) {
       if (e.name === "AbortError") return;
       console.warn("[dashboard] cache read failed:", e.message);
-      // DON'T clear existing recommendedJobs
       setRecsError(e.message || "Cache read failed");
       setIsFallback(true);
     } finally {
@@ -154,9 +146,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Load cache on mount — try sessionStorage first for instant display
   useEffect(() => {
-    // Restore from sessionStorage for instant stale display
     const saved = safeParse<Job[] | null>(sessionStorage.getItem(RECS_STORAGE_KEY), null);
     if (Array.isArray(saved) && saved.length > 0) {
       setRecommendedJobs(saved);
@@ -167,7 +157,6 @@ export default function DashboardPage() {
     return () => controller.abort();
   }, []);
 
-  // If cache was empty + profile has data → trigger background recommend
   const bgRecommendFiredRef = useRef(false);
   useEffect(() => {
     if (!isFallback || bgRecommendFiredRef.current) return;
@@ -187,7 +176,7 @@ export default function DashboardPage() {
 
     bgRecommendFiredRef.current = true;
     setBgRecommendRunning(true);
-    console.log("[dashboard] no cache + profile has data → triggering background recommend");
+    console.log("[dashboard] no cache + profile has data -> triggering background recommend");
 
     const payload = buildRecommendPayload(profile, industryMap, true);
     requestRecommend(payload)
@@ -197,9 +186,8 @@ export default function DashboardPage() {
       })
       .catch((err: any) => console.warn("[dashboard] background recommend failed:", err.message))
       .finally(() => setBgRecommendRunning(false));
-  }, [isFallback, profile, industryMap]);
+  }, [industryMap, isFallback, profile]);
 
-  // Live refresh: listen for cache updates from ProfileClient or own background call
   useEffect(() => {
     const onCacheUpdated = () => {
       console.log("[dashboard] cache updated, refreshing recommendations");
@@ -209,7 +197,6 @@ export default function DashboardPage() {
     return () => window.removeEventListener("jobfit:cache-updated", onCacheUpdated);
   }, [profile, industryMap]);
 
-  // Poll sessionStorage to detect recommend running from Profile page
   useEffect(() => {
     const poll = setInterval(() => {
       const status = sessionStorage.getItem("recommend.status");
@@ -240,142 +227,193 @@ export default function DashboardPage() {
     return [];
   }, [profile]);
 
-  const hasProfileData = useMemo(() => {
-    return (
-      (profile?.skillAbbrs?.length || 0) > 0 ||
-      (profile?.industryIds?.length || 0) > 0 ||
-      !!profile?.seniority ||
-      (profile?.benefitTypes?.length || 0) > 0 ||
-      !!profile?.desiredTitle
-    );
+  const profileSignalCount = useMemo(() => {
+    let count = 0;
+    if ((profile?.skillAbbrs?.length || 0) > 0) count += 1;
+    if ((profile?.industryIds?.length || 0) > 0) count += 1;
+    if ((profile?.benefitTypes?.length || 0) > 0) count += 1;
+    if (!!profile?.seniority) count += 1;
+    if (!!profile?.desiredTitle) count += 1;
+    if (profile?.targetSalaryMin !== undefined || profile?.targetSalaryMax !== undefined) count += 1;
+    return count;
   }, [profile]);
 
+  const hasProfileData = profileSignalCount > 0;
+  const recommendedCount = recommendedJobs?.length || 0;
+  const sourceLabel = jobSource === "backend" ? "AI-backed feed" : "Remotive feed";
+
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">JobRecs – Dashboard</h1>
-          <p className="text-sm text-gray-600">
-            Jobs • Analyze CV (dashboard upload) • Recommend/Match (profile)
-          </p>
-        </div>
+    <div className="dashboard-grid relative overflow-hidden">
+      <div className="hero-orb left-[-4rem] top-24 h-48 w-48 bg-blue-200/70" />
+      <div className="hero-orb right-[-5rem] top-10 h-56 w-56 bg-amber-200/60" />
 
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl overflow-hidden border">
-            <button
-              onClick={() => setJobSource("remotive")}
-              className={cn(
-                "px-3 py-1.5 text-sm",
-                jobSource === "remotive" ? "bg-gray-900 text-white" : "bg-white"
-              )}
-              type="button"
-            >
-              Remotive
-            </button>
-            <button
-              onClick={() => setJobSource("backend")}
-              className={cn(
-                "px-3 py-1.5 text-sm",
-                jobSource === "backend" ? "bg-gray-900 text-white" : "bg-white"
-              )}
-              type="button"
-            >
-              My Backend
-            </button>
-          </div>
+      <div className="relative mx-auto max-w-screen-2xl px-5 py-8 md:px-8 lg:px-10 lg:py-10">
+        <section className="card-elevated relative overflow-hidden px-6 py-6 md:px-8 md:py-8">
+          <div className="hero-orb right-8 top-6 h-28 w-28 bg-blue-200/80" />
+          <div className="hero-orb bottom-4 right-24 h-24 w-24 bg-amber-100/90" />
 
-          <button
-            onClick={() => router.push("/profile")}
-            className="px-3 py-1.5 text-sm rounded-xl border bg-white hover:bg-gray-50 flex items-center gap-1"
-            type="button"
-            title="Open Profile"
-          >
-            <User className="w-4 h-4" />
-            Profile
-          </button>
-        </div>
-      </header>
+          <div className="relative z-10 grid gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border  bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(226,65%,42%)]">
+                <Sparkles className="h-3.5 w-3.5" />
+                Job intelligence workspace
+              </div>
 
-      {/* Recommend loading indicator */}
-      {(recsLoading || bgRecommendRunning) && jobSource === "backend" && hasProfileData && (
-        <div className="mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50 flex items-center gap-3">
-          <Loader2 className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" />
-          <span className="text-sm text-blue-800">Loading AI-recommended jobs based on your profile...</span>
-        </div>
-      )}
+              <h1 className="mt-4 max-w-3xl text-3xl font-bold tracking-tight text-[hsl(220,20%,14%)] md:text-5xl">
+                Dashboard for discovery, CV analysis, and profile-based job matching.
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[hsl(220,10%,42%)] md:text-base">
+                Explore the job feed, analyze a CV upload, and compare it with your saved profile signals in one place.
+              </p>
+            </div>
 
-      {/* Fallback info banner */}
-      {isFallback && jobSource === "backend" && !recsLoading && (
-        <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <span className="text-sm text-amber-800">
-              {recsError
-                ? `AI recommendations unavailable (${recsError}). Showing all available jobs instead.`
-                : "No matching recommendations found. Showing all available jobs instead."}
-            </span>
-          </div>
-        </div>
-      )}
+            <div className="xl:flex xl:justify-end">
+              <div className="flex items-center gap-3 overflow-x-auto whitespace-nowrap pb-1 xl:mt-2">
+                <div className="flex shrink-0 rounded-2xl border  bg-white/80 p-1 shadow-sm">
+                  <button
+                    onClick={() => setJobSource("backend")}
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
+                      jobSource === "backend"
+                        ? "bg-[hsl(220,20%,14%)] text-white shadow-sm"
+                        : "text-[hsl(220,10%,42%)] hover:text-[hsl(220,20%,14%)]"
+                    )}
+                    type="button"
+                  >
+                    My Backend
+                  </button>
+                  <button
+                    onClick={() => setJobSource("remotive")}
+                    className={cn(
+                      "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
+                      jobSource === "remotive"
+                        ? "bg-[hsl(220,20%,14%)] text-white shadow-sm"
+                        : "text-[hsl(220,10%,42%)] hover:text-[hsl(220,20%,14%)]"
+                    )}
+                    type="button"
+                  >
+                    Remotive
+                  </button>
+                </div>
 
-      {/* Recommended badge */}
-      {!recsLoading && !bgRecommendRunning && !isFallback && recommendedJobs && recommendedJobs.length > 0 && jobSource === "backend" && (
-        <div className="mb-4 p-3 rounded-xl border border-green-200 bg-green-50 flex items-center gap-3">
-          <Sparkles className="w-4 h-4 text-green-600 flex-shrink-0" />
-          <span className="text-sm text-green-800">
-            Showing <b>{recommendedJobs.length}</b> AI-recommended jobs based on your profile
-          </span>
-        </div>
-      )}
+                <button
+                  onClick={() => router.push("/profile")}
+                  className="btn-ghost inline-flex shrink-0 items-center gap-2 text-sm"
+                  type="button"
+                  title="Open profile"
+                >
+                  <User className="h-4 w-4" />
+                  Open profile
+                </button>
 
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 lg:col-span-7 space-y-6">
-          <JobsPanel
-            source={jobSource}
-            jobsOverride={
-              jobSource === "backend"
-                ? (recommendedJobs ?? []) // Show cached results while loading; loading banner handles UX
-                : null
-            }
-            externalLoading={(recsLoading || bgRecommendRunning) && jobSource === "backend"}
-            query={query}
-            onQueryChange={setQuery}
-            ocrSkills={profileSkills}
-            onSelectJob={setSelectedJob}
-            selectedJobId={selectedJob?.id}
-          />
-        </div>
-
-        <div className="col-span-12 lg:col-span-5 space-y-6">
-          <CVUploadCard onOcrDone={(res) => setAnalysisOcr(res)} allowDemo />
-
-          <div className="border rounded-2xl p-4">
-            <SectionHeader
-              icon={TrendingUp}
-              title="Analyze CV"
-              desc="Strengths/Weaknesses + Recommended industry/role"
-            />
-            <AnalysisPanel ocr={analysisOcr} useBackend={true} />
-            <div className="mt-3 text-xs text-gray-500 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
-              NOTE: Upload CV here will NOT affect recommend/match. Recommend uses Profile.
+                {selectedJob && <span className="chip chip-neutral shrink-0">Selected: {selectedJob.title}</span>}
+              </div>
             </div>
           </div>
+        </section>
 
-          <div className="border rounded-2xl p-4">
-            <SectionHeader
-              icon={TrendingUp}
-              title="Match skills with selected jobs"
-              desc="Based on selected job vs skills from Profile"
+        <div className="mt-5 space-y-3">
+          {(recsLoading || bgRecommendRunning) && jobSource === "backend" && hasProfileData && (
+            <div className="glass-banner flex items-center gap-3 rounded-2xl px-4 py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              <span className="text-sm text-blue-900">
+                Loading AI-recommended jobs from your profile signals...
+              </span>
+            </div>
+          )}
+
+          {isFallback && jobSource === "backend" && !recsLoading && (
+            <div className="glass-banner flex items-start gap-3 rounded-2xl border border-amber-100 px-4 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <span className="text-sm text-amber-900">
+                {recsError
+                  ? `AI recommendations are unavailable (${recsError}). Showing the full backend job list instead.`
+                  : "No recommendation match was found yet. Showing the full backend job list instead."}
+              </span>
+            </div>
+          )}
+
+          {!recsLoading &&
+            !bgRecommendRunning &&
+            !isFallback &&
+            recommendedCount > 0 &&
+            jobSource === "backend" && (
+              <div className="glass-banner flex items-center gap-3 rounded-2xl border border-emerald-100 px-4 py-3">
+                <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+                <span className="text-sm text-emerald-900">
+                  Showing {recommendedCount} AI-recommended jobs tailored from your profile.
+                </span>
+              </div>
+            )}
+        </div>
+
+        <div className="mt-6 grid grid-cols-12 gap-6">
+          <div className="col-span-12 space-y-6 lg:col-span-7">
+            <JobsPanel
+              source={jobSource}
+              jobsOverride={jobSource === "backend" ? recommendedJobs ?? [] : null}
+              externalLoading={(recsLoading || bgRecommendRunning) && jobSource === "backend"}
+              query={query}
+              onQueryChange={setQuery}
+              ocrSkills={profileSkills}
+              onSelectJob={setSelectedJob}
+              selectedJobId={selectedJob?.id}
             />
-            <SkillMatchPanel ocrSkills={profileSkills} job={selectedJob} />
+          </div>
+
+          <div className="col-span-12 space-y-6 lg:col-span-5">
+            <CVUploadCard onOcrDone={(res) => setAnalysisOcr(res)} allowDemo />
+
+            <div className="card-elevated p-5">
+              <SectionHeader
+                icon={TrendingUp}
+                title="Analyze CV"
+                desc="Inspect strengths, gaps, and role directions from the uploaded CV."
+              />
+              <AnalysisPanel ocr={analysisOcr} useBackend />
+              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50/90 px-3 py-3 text-xs text-amber-900">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                Uploading a CV here does not change recommendation results. Job recommendations continue to use your Profile page data.
+              </div>
+            </div>
+
+            <div className="card-elevated p-5">
+              <SectionHeader
+                icon={BriefcaseBusiness}
+                title="Match skills with selected jobs"
+                desc="Compare the selected role with the skills currently stored in your profile."
+              />
+              <SkillMatchPanel ocrSkills={profileSkills} job={selectedJob} />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="card-elevated p-4">
+                <div className="mb-2 inline-flex rounded-full bg-[hsl(226,85%,96%)] p-2 text-[hsl(226,65%,42%)]">
+                  <Upload className="h-4 w-4" />
+                </div>
+                <div className="text-sm font-semibold text-[hsl(220,20%,14%)]">Quick CV review</div>
+                <p className="mt-1 text-xs leading-5 text-[hsl(220,10%,42%)]">
+                  Use the upload area for one-off analysis without touching saved profile data.
+                </p>
+              </div>
+
+              <div className="card-elevated p-4">
+                <div className="mb-2 inline-flex rounded-full bg-[hsl(38,100%,94%)] p-2 text-amber-600">
+                  <User className="h-4 w-4" />
+                </div>
+                <div className="text-sm font-semibold text-[hsl(220,20%,14%)]">Profile-driven matching</div>
+                <p className="mt-1 text-xs leading-5 text-[hsl(220,10%,42%)]">
+                  Keep the Profile page updated to improve recommendation quality and match scoring.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <footer className="mt-10 text-center text-xs text-gray-500">
-        © {new Date().getFullYear()} JobRecs Demo.
-      </footer>
+        <footer className="mt-10 pb-2 text-center text-xs text-[hsl(220,10%,42%)]">
+          Copyright {new Date().getFullYear()} JobRecs Demo.
+        </footer>
+      </div>
     </div>
   );
 }

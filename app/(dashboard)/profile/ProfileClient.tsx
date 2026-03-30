@@ -1,60 +1,118 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, User } from "lucide-react";
-import type { UserProfile, SeniorityLevel } from "@/types/profile";
-import { uploadCvToBackend, extractProfileFromBackend } from "@/services/cvService";
-import { buildRecommendPayload, requestRecommend } from "@/services/recommendService";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Brain,
+  BriefcaseBusiness,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  ScanSearch,
+  Sparkles,
+  Upload,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+
+import { cn } from "@/lib/api";
+import { extractProfileFromBackend, uploadCvToBackend } from "@/services/cvService";
+import { buildRecommendPayload, requestRecommend } from "@/services/recommendService";
+import type { SeniorityLevel, UserProfile } from "@/types/profile";
 
 type Industry = { industry_id: number; industry_name: string };
 type Skill = { skill_abr: string; skill_name: string };
+
+type ExtractedProfile = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  desired_title?: string;
+  seniority_hint?: string;
+  industry_ids?: number[];
+  industry_names?: string[];
+  industry_background?: string;
+  skills_list?: string[];
+  skill_categories?: string[];
+  skill_mapping?: Record<string, string>;
+};
+
+type CvPreviewData = {
+  extractedProfile: ExtractedProfile;
+  mergedSkills: string[];
+  fileName: string;
+};
 
 const DEFAULT_PROFILE: UserProfile = {
   id: "demo_user",
   industryIds: [],
   benefitTypes: [],
   skillAbbrs: [],
-  targetSalaryUnit: "monthly" as any,
+  targetSalaryUnit: "monthly",
   companySize: undefined,
   companySpecialities: [],
 };
 
-function safeParse<T>(raw: string | null, fallback: T): T {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
+const SENIORITY_OPTIONS: Array<{ value: SeniorityLevel; label: string }> = [
+  { value: "intern", label: "Intern / Fresher" },
+  { value: "junior", label: "Junior (1-2y)" },
+  { value: "mid", label: "Mid (2-5y)" },
+  { value: "senior", label: "Senior (5y+)" },
+  { value: "lead", label: "Lead / Manager" },
+];
+
+const COMPANY_SPECIALITIES = [
+  { value: "Remote-first", label: "Remote-first" },
+  { value: "Fast-paced", label: "Fast-paced" },
+  { value: "Work-life balance", label: "Work-life balance" },
+  { value: "Startup culture", label: "Startup culture" },
+  { value: "Enterprise culture", label: "Enterprise culture" },
+  { value: "Innovation-driven", label: "Innovation-driven" },
+  { value: "Research-focused", label: "Research-focused" },
+  { value: "Product-focused", label: "Product-focused" },
+  { value: "Customer-centric", label: "Customer-centric" },
+  { value: "Agile/Scrum", label: "Agile/Scrum" },
+];
+
+const SENIORITY_LABELS: Record<string, string> = {
+  intern: "Intern / Fresher",
+  junior: "Junior",
+  mid: "Mid",
+  senior: "Senior",
+  lead: "Lead / Manager",
+};
 
 export default function ProfileClient() {
   const router = useRouter();
 
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
-
-  // meta
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [benefitTypes, setBenefitTypes] = useState<string[]>([]);
-  
-  // CV Preview Modal state
-  const [cvPreviewData, setCvPreviewData] = useState<{
-    extractedProfile: any;
-    mergedSkills: string[];
-    fileName: string;
-  } | null>(null);
+
+  const [cvPreviewData, setCvPreviewData] = useState<CvPreviewData | null>(null);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
   const [cvContentType, setCvContentType] = useState<string | null>(null);
   const [isProcessingCv, setIsProcessingCv] = useState(false);
   const [recommendStatus, setRecommendStatus] = useState<"idle" | "pending" | "running" | "done" | "failed">(() => {
     if (typeof window === "undefined") return "idle";
     const saved = sessionStorage.getItem("recommend.status");
-    return (saved === "running" || saved === "done") ? saved : "idle";
+    return saved === "running" || saved === "done" ? saved : "idle";
   });
 
-  // Poll sessionStorage to detect status changes from async IIFE after navigation
+  const industryMap = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const it of industries) m.set(it.industry_id, it.industry_name);
+    return m;
+  }, [industries]);
+
+  const skillMap = useMemo(() => new Map(skills.map((x) => [x.skill_abr, x.skill_name])), [skills]);
+
+  const userChangedRef = useRef(false);
+  const recommendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedProfile = useRef(true);
+
   useEffect(() => {
     const poll = setInterval(() => {
       const stored = sessionStorage.getItem("recommend.status");
@@ -72,31 +130,16 @@ export default function ProfileClient() {
     return () => clearInterval(poll);
   }, [recommendStatus]);
 
-  const industryMap = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const it of industries || []) m.set(it.industry_id, it.industry_name);
-    return m;
-  }, [industries]);
-
-  const skillMap = useMemo(() => new Map(skills.map((x) => [x.skill_abr, x.skill_name])), [skills]);
-
-  // ===== Load profile from server file (/api/profile) once =====
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch("/api/profile", { cache: "no-store" });
         const data = await res.json();
         if (data?.profile) setProfile({ ...DEFAULT_PROFILE, ...data.profile });
-      } catch {
-        // ignore
-      }
+      } catch {}
     })();
   }, []);
 
-
-
-
-  // ===== Autosave profile to server file (debounce) =====
   useEffect(() => {
     const t = setTimeout(() => {
       fetch("/api/profile", {
@@ -108,19 +151,15 @@ export default function ProfileClient() {
     return () => clearTimeout(t);
   }, [profile]);
 
-  // ===== Track user-initiated profile changes (skip initial load) =====
-  const userChangedRef = useRef(false);
-  const recommendTimeoutRef = useRef<any>(null);
-  const isMountedProfile = useRef(true);
-
   useEffect(() => {
     isMountedProfile.current = true;
-    return () => { isMountedProfile.current = false; };
+    return () => {
+      isMountedProfile.current = false;
+    };
   }, []);
 
-  // Background recommend: ONLY trigger on real user changes
   useEffect(() => {
-    if (!userChangedRef.current) return; // Skip initial load / mount
+    if (!userChangedRef.current) return;
 
     const hasData =
       (profile.skillAbbrs?.length || 0) > 0 ||
@@ -136,31 +175,23 @@ export default function ProfileClient() {
     if (!hasData) return;
 
     if (isMountedProfile.current) setRecommendStatus("pending");
-    console.log("[profile] profile changed, recommend will fire in 5s...");
 
     if (recommendTimeoutRef.current) clearTimeout(recommendTimeoutRef.current);
 
-    // Debounce 5s after profile change to avoid spamming
     recommendTimeoutRef.current = setTimeout(async () => {
       try {
         if (isMountedProfile.current) setRecommendStatus("running");
         sessionStorage.setItem("recommend.status", "running");
-        console.log("[profile] 5s debounce elapsed, firing recommend now...");
-        // force_refresh=true → always recompute after user edits
         const payload = buildRecommendPayload(profile, industryMap, true);
         await requestRecommend(payload);
-        console.log("[profile] background recommend cached successfully");
         if (isMountedProfile.current) setRecommendStatus("done");
         sessionStorage.setItem("recommend.status", "done");
-        // Notify Dashboard to live-refresh
         window.dispatchEvent(new Event("jobfit:cache-updated"));
-        // Reset status after 5s
         setTimeout(() => {
           if (isMountedProfile.current) setRecommendStatus("idle");
           sessionStorage.removeItem("recommend.status");
         }, 5000);
-      } catch (e: any) {
-        console.warn("[profile] background recommend failed:", e.message);
+      } catch {
         if (isMountedProfile.current) setRecommendStatus("failed");
         sessionStorage.removeItem("recommend.status");
         setTimeout(() => {
@@ -168,32 +199,32 @@ export default function ProfileClient() {
         }, 5000);
       }
     }, 5000);
-
-    return () => {
-      // DON'T clear timeout here because unmount shouldn't cancel the sync
-    };
   }, [
-    profile.skillAbbrs, profile.industryIds, profile.seniority,
-    profile.benefitTypes, profile.targetSalaryMin, profile.targetSalaryMax,
-    profile.companySize, profile.companySpecialities, profile.desiredTitle,
+    profile.skillAbbrs,
+    profile.industryIds,
+    profile.seniority,
+    profile.benefitTypes,
+    profile.targetSalaryMin,
+    profile.targetSalaryMax,
+    profile.companySize,
+    profile.companySpecialities,
+    profile.desiredTitle,
     industryMap,
   ]);
 
-    // load persisted CV if exists
-    useEffect(() => {
+  useEffect(() => {
     (async () => {
-        try {
+      try {
         const res = await fetch(`/api/profile/cv?ts=${Date.now()}`, { method: "GET", cache: "no-store" });
         if (res.ok) {
-            const ct = res.headers.get("Content-Type") || "application/pdf";
-            setCvContentType(ct);
-            setCvUrl(`/api/profile/cv?ts=${Date.now()}`);
+          const ct = res.headers.get("Content-Type") || "application/pdf";
+          setCvContentType(ct);
+          setCvUrl(`/api/profile/cv?ts=${Date.now()}`);
         }
-        } catch {}
+      } catch {}
     })();
-    }, []);
+  }, []);
 
-  // ===== Fetch meta =====
   useEffect(() => {
     (async () => {
       try {
@@ -207,12 +238,6 @@ export default function ProfileClient() {
         const s = sRes.ok ? await sRes.json() : { skills: [] };
         const b = bRes.ok ? await bRes.json() : { benefitTypes: [] };
 
-        console.log("[DEBUG] Meta API loaded:", {
-          industries: i.industries?.length || 0,
-          skills: s.skills?.length || 0,
-          benefits: b.benefitTypes?.length || 0
-        });
-
         setIndustries(i.industries || []);
         setSkills(s.skills || []);
         setBenefitTypes(b.benefitTypes || []);
@@ -225,9 +250,8 @@ export default function ProfileClient() {
   }, []);
 
   async function onUploadCv(file: File) {
-    setIsProcessingCv(true); // Start loading
+    setIsProcessingCv(true);
     try {
-      // Persist CV to server (supports PDF, PNG, JPG)
       const fd = new FormData();
       fd.append("file", file);
 
@@ -240,7 +264,6 @@ export default function ProfileClient() {
         setCvContentType(null);
       }
 
-      // OCR and extract data
       const ocr = await uploadCvToBackend(file);
       const extractedProfile = await extractProfileFromBackend(ocr.text, false);
 
@@ -250,39 +273,48 @@ export default function ProfileClient() {
         skills
       );
 
-      // Show modal with extracted data
       setCvPreviewData({
         extractedProfile,
         mergedSkills,
         fileName: file.name,
       });
     } catch (error: any) {
-      console.error("[onUploadCv] Error:", error);
+      console.error("[profile] cv process error:", error);
       alert(
-        "❌ Failed to process CV\n\n" +
-        "The CV file has been saved, but we couldn't extract data from it.\n" +
-        `Error: ${error.message || "Unknown error"}\n\n` +
-        "You can still manually fill in your profile information."
+        "Failed to process CV.\n\n" +
+          "The file may already be saved, but profile extraction did not complete.\n" +
+          `Error: ${error?.message || "Unknown error"}`
       );
     } finally {
-      setIsProcessingCv(false); // Stop loading
+      setIsProcessingCv(false);
     }
+  }
+
+  async function removeCv() {
+    await fetch("/api/profile/cv", { method: "DELETE" }).catch(() => {});
+    setCvUrl(null);
+    setCvContentType(null);
+    userChangedRef.current = true;
+    setProfile((p) => {
+      const next: any = { ...p };
+      delete next.cv;
+      return next;
+    });
   }
 
   function applyCvChanges() {
     if (!cvPreviewData) return;
 
     const { extractedProfile, fileName } = cvPreviewData;
+    const aiTitle =
+      extractedProfile.desired_title && extractedProfile.desired_title !== "Unknown"
+        ? extractedProfile.desired_title
+        : undefined;
+    const aiIndustryIds =
+      Array.isArray(extractedProfile.industry_ids) && extractedProfile.industry_ids.length > 0
+        ? extractedProfile.industry_ids
+        : undefined;
 
-    const aiTitle = extractedProfile.desired_title && extractedProfile.desired_title !== "Unknown" 
-      ? extractedProfile.desired_title 
-      : undefined;
-
-    const aiIndustryIds = Array.isArray(extractedProfile.industry_ids) && extractedProfile.industry_ids.length > 0
-      ? extractedProfile.industry_ids
-      : undefined;
-
-    // Explicitly mark as user-initiated change so recommend debounce will fire
     userChangedRef.current = true;
 
     setProfile((p) => ({
@@ -291,20 +323,18 @@ export default function ProfileClient() {
       desiredTitle: aiTitle || p.desiredTitle,
       skillAbbrs: extractedProfile.skill_categories || p.skillAbbrs,
       industryIds: aiIndustryIds || p.industryIds,
-      seniority: extractedProfile.seniority_hint !== "unknown" 
-        ? extractedProfile.seniority_hint 
-        : p.seniority,
+      seniority:
+        extractedProfile.seniority_hint && extractedProfile.seniority_hint !== "unknown"
+          ? (extractedProfile.seniority_hint as SeniorityLevel)
+          : p.seniority,
       cv: { fileName, profile: extractedProfile, updatedAt: new Date().toISOString() } as any,
     }));
 
-    setCvPreviewData(null); // Close modal
-
-    // The `userChangedRef.current = true` above will trigger the 30s debounce
-    // process so we don't need to manually call requestRecommend immediately here.
+    setCvPreviewData(null);
   }
 
   function rejectCvChanges() {
-    setCvPreviewData(null); // Close modal, CV is already saved but profile not updated
+    setCvPreviewData(null);
   }
 
   function setField<K extends keyof UserProfile>(k: K, v: UserProfile[K]) {
@@ -312,356 +342,480 @@ export default function ProfileClient() {
     setProfile((p) => ({ ...p, [k]: v }));
   }
 
+  const cvMeta = (profile as any).cv;
+
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10 py-8">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <User className="w-6 h-6" /> Profile
-          </h1>
-        </div>
+    <div className="dashboard-grid relative overflow-hidden">
+      <div className="hero-orb left-[-4rem] top-20 h-48 w-48 bg-blue-200/70" />
+      <div className="hero-orb right-[-4rem] top-12 h-52 w-52 bg-amber-200/65" />
 
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="px-3 py-1.5 text-sm rounded-xl border bg-white hover:bg-gray-50"
-          type="button"
-        >
-          Back to Dashboard
-        </button>
-      </header>
+      <div className="relative mx-auto max-w-screen-2xl px-5 py-8 md:px-8 lg:px-10 lg:py-10">
+        <section className="card-elevated relative overflow-hidden px-6 py-6 md:px-8 md:py-8">
+          <div className="hero-orb right-10 top-6 h-28 w-28 bg-blue-200/80" />
+          <div className="hero-orb bottom-6 right-28 h-20 w-20 bg-amber-100/80" />
 
-      {/* Recommend status indicator */}
-      {recommendStatus === "pending" && (
-        <div className="mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50 flex items-center gap-3">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-          <span className="text-sm text-blue-800">Profile changed — recommendations will refresh in ~30s...</span>
-        </div>
-      )}
-      {recommendStatus === "running" && (
-        <div className="mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50 flex items-center gap-3">
-          <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-          <span className="text-sm text-blue-800">Running AI recommendation... (this may take 2-3 min)</span>
-        </div>
-      )}
-      {recommendStatus === "done" && (
-        <div className="mb-4 p-3 rounded-xl border border-green-200 bg-green-50 flex items-center gap-3">
-          <span className="text-sm text-green-800">✅ Recommendations updated! Go to Dashboard to see new results.</span>
-        </div>
-      )}
-      {recommendStatus === "failed" && (
-        <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 flex items-center gap-3">
-          <span className="text-sm text-red-800">❌ Recommend failed. Will retry on next profile change.</span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-12 gap-6">
-        {/* LEFT */}
-        <div className="col-span-12 lg:col-span-7 space-y-6">
-          <div className="border rounded-2xl p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold">Upload CV (Profile)</div>
-                <div className="text-xs text-gray-500">Upload ở đây sẽ dùng cho recommend + autofill fields</div>
+          <div className="relative z-10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full border  bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[hsl(226,65%,42%)]">
+                <Sparkles className="h-3.5 w-3.5" />
+                Profile intelligence
               </div>
-                <div className="flex items-center gap-2">
-                    <label className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 cursor-pointer inline-flex items-center gap-2">
-                            <Upload className="w-4 h-4" /> Select CV
-                            <input
-                            className="hidden"
-                            type="file"
-                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                            onChange={(e) => {
-                                const f = e.target.files?.[0];
-                                if (f) onUploadCv(f);
-                            }}
-                            />
-                    </label>
-                    <button
-                        type="button"
-                        onClick={async () => {
-                            await fetch("/api/profile/cv", { method: "DELETE" }).catch(() => {});
-                            setCvUrl(null);
-                            setCvContentType(null);
-                            userChangedRef.current = true;
-                            setProfile((p) => {
-                            const next: any = { ...p };
-                            delete next.cv;
-                            return next;
-                            });
-                        }}
-                        className="px-4 py-2 rounded-xl border bg-white hover:bg-gray-50 text-sm"
-                        >
-                        Remove CV
-                    </button>
-                </div>
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="btn-ghost inline-flex shrink-0 items-center gap-2 text-sm"
+                type="button"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to dashboard
+              </button>
             </div>
 
-            {(profile as any).cv?.fileName && (
-              <div className="mt-3 text-sm text-gray-700">
-                Current CV: <b>{(profile as any).cv.fileName}</b>
-                {(profile as any).cv.updatedAt && (
-                  <span className="text-xs text-gray-500">
-                    {" "}
-                    • {new Date((profile as any).cv.updatedAt).toLocaleString()}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="mt-4 max-w-3xl">
+              <h1 className="mt-4 max-w-3xl text-3xl font-bold tracking-tight text-[hsl(220,20%,14%)] md:text-5xl">
+                Edit your profile so dashboard recommendations stay relevant.
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[hsl(220,10%,42%)] md:text-base">
+                Upload a CV for autofill, update your role and preferences, then let the recommend cache refresh in the background.
+              </p>
 
-            <div className="mt-4 border rounded-xl overflow-hidden h-[680px]">
-              {cvUrl ? (
-                cvContentType?.startsWith("image/") ? (
-                  <img
-                    src={cvUrl}
-                    alt="CV Preview"
-                    className="w-full h-full object-contain bg-gray-50"
-                  />
-                ) : (
-                  <iframe title="CV Preview" src={cvUrl} className="w-full h-full" />
-                )
-              ) : (
-                <div className="w-full h-full grid place-items-center text-sm text-gray-500">
-                  Upload CV to preview (PDF, PNG, JPG)
-                </div>
-              )}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* RIGHT */}
-        <div className="col-span-12 lg:col-span-5">
-          <div className="sticky top-8 space-y-4">
-            <ProfileTabs
-              profile={profile}
-              setField={setField}
-              industries={industries}
-              skills={skills}
-              benefitTypes={benefitTypes}
-              industryMap={industryMap}
-              skillMap={skillMap}
+        <div className="mt-5 space-y-3">
+          {recommendStatus === "pending" && (
+            <StatusBanner
+              tone="info"
+              icon={<Sparkles className="h-4 w-4 text-blue-600" />}
+              text="Profile changed. AI recommendations will refresh in about 5 seconds if you stop editing."
             />
+          )}
+          {recommendStatus === "running" && (
+            <StatusBanner
+              tone="info"
+              icon={<Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+              text="Running AI recommendation sync. This can take a couple of minutes."
+            />
+          )}
+          {recommendStatus === "done" && (
+            <StatusBanner
+              tone="success"
+              icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+              text="Recommendations updated. Open the dashboard to review the newest results."
+            />
+          )}
+          {recommendStatus === "failed" && (
+            <StatusBanner
+              tone="danger"
+              icon={<AlertTriangle className="h-4 w-4 text-rose-600" />}
+              text="Recommendation sync failed. It will try again after the next profile change."
+            />
+          )}
+        </div>
+
+        <div className="mt-6 grid grid-cols-12 gap-6">
+          <div className="col-span-12 space-y-6 lg:col-span-7">
+            <div className="card-elevated overflow-hidden p-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border  bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(226,65%,42%)]">
+                    <Upload className="h-3.5 w-3.5" />
+                    CV workspace
+                  </div>
+                  <h2 className="mt-3 text-2xl font-bold tracking-tight text-[hsl(220,20%,14%)]">
+                    Upload CV for profile autofill
+                  </h2>
+                  <p className="mt-1 text-sm text-[hsl(220,10%,42%)]">
+                    Files uploaded here can populate profile fields and refresh recommendation data.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <label className="btn-primary inline-flex cursor-pointer items-center gap-2 text-sm">
+                    <Upload className="h-4 w-4" />
+                    Select CV
+                    <input
+                      className="hidden"
+                      type="file"
+                      accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onUploadCv(f);
+                      }}
+                    />
+                  </label>
+                  <button type="button" onClick={removeCv} className="btn-ghost text-sm">
+                    Remove CV
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_260px]">
+                <div className="rounded-[1.4rem] border  bg-[linear-gradient(180deg,rgba(255,255,255,0.8),rgba(248,250,252,0.88))] p-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[hsl(220,10%,42%)]">
+                    <span className="chip chip-primary">Autofill basics</span>
+                    <span className="chip chip-accent">Map skill categories</span>
+                    <span className="chip chip-success">Trigger recommend sync</span>
+                  </div>
+
+                  {cvMeta?.fileName ? (
+                    <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-950">
+                      <div className="text-xs uppercase tracking-[0.22em] text-emerald-700/80">Current file</div>
+                      <div className="mt-1 font-medium">{cvMeta.fileName}</div>
+                      {cvMeta.updatedAt && (
+                        <div className="mt-1 text-xs text-emerald-700/75">
+                          Updated {new Date(cvMeta.updatedAt).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-dashed border-white/90 bg-white/65 px-4 py-5 text-sm text-[hsl(220,10%,42%)]">
+                      No CV attached yet. Upload a file to preview it here and extract structured profile data.
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <MiniInfo icon={<ScanSearch className="h-4 w-4" />} title="OCR" desc="Extracts raw text from your CV." />
+                    <MiniInfo icon={<Brain className="h-4 w-4" />} title="AI mapping" desc="Maps skills and industry hints." />
+                    <MiniInfo icon={<BriefcaseBusiness className="h-4 w-4" />} title="Recommend" desc="Refreshes dashboard cache after edits." />
+                  </div>
+                </div>
+
+                <div className="rounded-[1.4rem] border  bg-white/75 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">What updates</div>
+                  <ul className="mt-3 space-y-3 text-sm text-[hsl(220,10%,42%)]">
+                    <li>Full name and desired title if the extractor is confident.</li>
+                    <li>Seniority, industries, and skill categories for matching.</li>
+                    <li>The dashboard recommendation cache after you confirm changes.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-[1.5rem] border  bg-white/65">
+                <div className="flex items-center justify-between border-b border-slate-200/60 px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-[hsl(220,20%,14%)]">
+                    <FileText className="h-4 w-4 text-[hsl(226,65%,42%)]" />
+                    CV preview
+                  </div>
+                  <div className="text-xs text-[hsl(220,10%,42%)]">PDF, PNG, JPG supported</div>
+                </div>
+
+                <div className="h-[680px] bg-[linear-gradient(180deg,rgba(255,255,255,0.7),rgba(248,250,252,0.9))]">
+                  {cvUrl ? (
+                    cvContentType?.startsWith("image/") ? (
+                      <img src={cvUrl} alt="CV Preview" className="h-full w-full object-contain bg-slate-50/70" />
+                    ) : (
+                      <iframe title="CV Preview" src={cvUrl} className="h-full w-full" />
+                    )
+                  ) : (
+                    <div className="grid h-full place-items-center px-6 text-center">
+                      <div>
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-[hsl(226,65%,42%)] shadow-sm">
+                          <FileText className="h-7 w-7" />
+                        </div>
+                        <div className="mt-4 text-base font-semibold text-[hsl(220,20%,14%)]">Preview will appear here</div>
+                        <div className="mt-1 text-sm text-[hsl(220,10%,42%)]">
+                          Upload a CV to inspect the file and review extracted profile changes.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-12 lg:col-span-5">
+            <div className="sticky top-8 space-y-4">
+              <ProfileTabs
+                profile={profile}
+                setField={setField}
+                industries={industries}
+                skills={skills}
+                benefitTypes={benefitTypes}
+                industryMap={industryMap}
+                skillMap={skillMap}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* CV Preview Modal */}
-      {cvPreviewData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl">
-            <div className="p-6 border-b sticky top-0 bg-white">
-              <h2 className="text-xl font-bold">CV Uploaded Successfully! 🎉</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Review the extracted data below. Do you want to update your profile with this information?
+        {cvPreviewData && (
+          <CvPreviewModal
+            profile={profile}
+            cvPreviewData={cvPreviewData}
+            skillMap={skillMap}
+            onClose={rejectCvChanges}
+            onApply={applyCvChanges}
+          />
+        )}
+
+        {isProcessingCv && <ProcessingOverlay />}
+      </div>
+    </div>
+  );
+}
+
+function StatusBanner({
+  icon,
+  text,
+  tone,
+}: {
+  icon: React.ReactNode;
+  text: string;
+  tone: "info" | "success" | "danger";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-100 text-emerald-900"
+      : tone === "danger"
+        ? "border-rose-100 text-rose-900"
+        : "border-blue-100 text-blue-900";
+
+  return (
+    <div className={cn("glass-banner flex items-center gap-3 rounded-2xl px-4 py-3", toneClass)}>
+      {icon}
+      <span className="text-sm">{text}</span>
+    </div>
+  );
+}
+
+function MiniInfo({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-2xl border  bg-white/75 p-3">
+      <div className="mb-2 inline-flex rounded-full bg-[hsl(226,85%,96%)] p-2 text-[hsl(226,65%,42%)]">{icon}</div>
+      <div className="text-sm font-semibold text-[hsl(220,20%,14%)]">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[hsl(220,10%,42%)]">{desc}</div>
+    </div>
+  );
+}
+
+function CvPreviewModal({
+  profile,
+  cvPreviewData,
+  skillMap,
+  onClose,
+  onApply,
+}: {
+  profile: UserProfile;
+  cvPreviewData: CvPreviewData;
+  skillMap: Map<string, string>;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  const extracted = cvPreviewData.extractedProfile;
+
+  const hasNoChanges =
+    (!extracted.desired_title || extracted.desired_title === "Unknown") &&
+    extracted.seniority_hint === "unknown" &&
+    cvPreviewData.mergedSkills.length === 0 &&
+    (!extracted.industry_ids || extracted.industry_ids.length === 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
+      <div className="card-elevated max-h-[90vh] w-full max-w-3xl overflow-auto">
+        <div className="sticky top-0 z-10 border-b border-slate-200/60 bg-white/90 px-6 py-5 backdrop-blur">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border  bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(226,65%,42%)]">
+                <Sparkles className="h-3.5 w-3.5" />
+                CV extraction review
+              </div>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[hsl(220,20%,14%)]">
+                Review extracted profile changes
+              </h2>
+              <p className="mt-1 text-sm text-[hsl(220,10%,42%)]">
+                Confirm the fields you want to apply from <span className="font-medium">{cvPreviewData.fileName}</span>.
               </p>
             </div>
+            <button type="button" onClick={onClose} className="btn-ghost inline-flex items-center gap-2 text-sm">
+              <X className="h-4 w-4" />
+              Close
+            </button>
+          </div>
+        </div>
 
-            <div className="p-6 space-y-4">
-              {/* Personal Info */}
-              {(cvPreviewData.extractedProfile.name !== "Unknown" || 
-                cvPreviewData.extractedProfile.email !== "Unknown" || 
-                cvPreviewData.extractedProfile.phone !== "Unknown") && (
-                <div className="border rounded-xl p-4 bg-blue-50">
-                  <div className="text-xs font-semibold text-gray-600 mb-3">Personal Information</div>
-                  <div className="space-y-2 text-sm">
-                    {cvPreviewData.extractedProfile.name !== "Unknown" && (
-                      <div>
-                        <span className="text-gray-500">Name:</span>{" "}
-                        <span className="font-medium">{cvPreviewData.extractedProfile.name}</span>
-                      </div>
-                    )}
-                    {cvPreviewData.extractedProfile.email !== "Unknown" && (
-                      <div>
-                        <span className="text-gray-500">Email:</span>{" "}
-                        <span className="font-medium">{cvPreviewData.extractedProfile.email}</span>
-                      </div>
-                    )}
-                    {cvPreviewData.extractedProfile.phone !== "Unknown" && (
-                      <div>
-                        <span className="text-gray-500">Phone:</span>{" "}
-                        <span className="font-medium">{cvPreviewData.extractedProfile.phone}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        <div className="space-y-4 p-6">
+          {(extracted.name !== "Unknown" || extracted.email !== "Unknown" || extracted.phone !== "Unknown") && (
+            <ModalSection title="Personal details" eyebrow="Detected">
+              <div className="grid gap-3 md:grid-cols-3">
+                {extracted.name && extracted.name !== "Unknown" && <KeyValue label="Name" value={extracted.name} />}
+                {extracted.email && extracted.email !== "Unknown" && <KeyValue label="Email" value={extracted.email} />}
+                {extracted.phone && extracted.phone !== "Unknown" && <KeyValue label="Phone" value={extracted.phone} />}
+              </div>
+            </ModalSection>
+          )}
+
+          {extracted.desired_title && extracted.desired_title !== "Unknown" && (
+            <ModalSection title="Desired title" eyebrow="AI suggestion">
+              <CompareRow before={profile.desiredTitle || "-"} after={extracted.desired_title} />
+            </ModalSection>
+          )}
+
+          {extracted.seniority_hint && extracted.seniority_hint !== "unknown" && (
+            <ModalSection title="Seniority" eyebrow="AI suggestion">
+              <CompareRow
+                before={profile.seniority ? SENIORITY_LABELS[profile.seniority] || profile.seniority : "-"}
+                after={SENIORITY_LABELS[extracted.seniority_hint] || extracted.seniority_hint}
+              />
+            </ModalSection>
+          )}
+
+          {extracted.industry_ids?.length ? (
+            <ModalSection title="Industries" eyebrow="Mapped from CV">
+              <div className="flex flex-wrap gap-2">
+                {(extracted.industry_names || []).map((name, i) => (
+                  <span key={`${name}-${i}`} className="chip chip-accent">
+                    {name}
+                  </span>
+                ))}
+              </div>
+              {extracted.industry_background && extracted.industry_background !== "Unknown" && (
+                <div className="mt-3 text-xs text-[hsl(220,10%,42%)]">Based on: {extracted.industry_background}</div>
               )}
+            </ModalSection>
+          ) : null}
 
-              {/* Desired Title (AI-extracted) */}
-              {cvPreviewData.extractedProfile.desired_title && cvPreviewData.extractedProfile.desired_title !== "Unknown" && (
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">Desired Title (AI-suggested)</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">{profile.desiredTitle || "—"}</span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-sm font-medium text-green-700">{cvPreviewData.extractedProfile.desired_title}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Seniority */}
-              {cvPreviewData.extractedProfile.seniority_hint !== "unknown" && (
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <div className="text-xs font-semibold text-gray-600 mb-2">Seniority</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">
-                      {({ intern: "Intern / Fresher", junior: "Junior", mid: "Mid", senior: "Senior", lead: "Lead / Manager" } as Record<string, string>)[profile.seniority || ""] || "—"}
-                    </span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-sm font-medium text-green-700">
-                      {({ intern: "Intern / Fresher", junior: "Junior", mid: "Mid", senior: "Senior", lead: "Lead / Manager" } as Record<string, string>)[cvPreviewData.extractedProfile.seniority_hint] || cvPreviewData.extractedProfile.seniority_hint}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Industries (AI-mapped) */}
-              {cvPreviewData.extractedProfile.industry_ids?.length > 0 && (
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold text-gray-600">Industries</span>
-                    <span className="text-xs text-gray-500">- AI mapped from your CV</span>
+          {extracted.skills_list?.length ? (
+            <ModalSection title="Skills profile" eyebrow="AI mapping">
+              {extracted.skill_categories?.length ? (
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(220,10%,56%)]">
+                    Job categories
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(cvPreviewData.extractedProfile.industry_names || []).map((name: string, i: number) => (
-                      <span key={i} className="px-3 py-1.5 text-xs rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-medium">
-                        {name}
+                    {extracted.skill_categories.map((cat) => (
+                      <span key={cat} className="chip chip-primary">
+                        {cat} {skillMap.get(cat) ? `- ${skillMap.get(cat)}` : ""}
                       </span>
                     ))}
                   </div>
-                  {cvPreviewData.extractedProfile.industry_background && cvPreviewData.extractedProfile.industry_background !== "Unknown" && (
-                    <div className="mt-2 text-xs text-gray-500 italic">
-                      💡 Based on: {cvPreviewData.extractedProfile.industry_background}
-                    </div>
-                  )}
                 </div>
-              )}
+              ) : null}
 
-              {/* Skills - AI Mapping Display */}
-              {cvPreviewData.extractedProfile.skills_list?.length > 0 && (
-                <div className="border rounded-xl p-4 bg-gray-50">
-                  <div className="text-xs font-semibold text-gray-600 mb-3">Skills Profile</div>
-                  
-                  {/* AI-Mapped Categories */}
-                  {cvPreviewData.extractedProfile.skill_categories?.length > 0 && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs text-blue-700 font-medium">🤖 Job Categories ({cvPreviewData.extractedProfile.skill_categories.length})</span>
-                        <span className="text-xs text-gray-500">- Used for job matching</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {cvPreviewData.extractedProfile.skill_categories.map((cat: string) => {
-                          const categoryName = skillMap.get(cat) || cat;
-                          return (
-                            <span key={cat} className="px-3 py-1.5 text-xs rounded-full bg-blue-100 text-blue-800 border border-blue-300 font-medium">
-                              {cat} - {categoryName}
-                            </span>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500 italic">
-                        💡 AI automatically mapped your skills to these categories for accurate job recommendations
-                      </div>
-                    </div>
-                  )}
+              <div className="mt-4">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-[hsl(220,10%,56%)]">
+                  Technical skills
+                </div>
+                <div className="rounded-2xl border  bg-white/75 px-4 py-3 text-sm text-[hsl(220,10%,42%)]">
+                  {extracted.skills_list.slice(0, 20).join(", ")}
+                  {extracted.skills_list.length > 20 && ` ... +${extracted.skills_list.length - 20} more`}
+                </div>
+              </div>
 
-                  {/* Detailed Skills */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-green-700 font-medium">📋 Technical Skills ({cvPreviewData.extractedProfile.skills_list.length})</span>
-                      <span className="text-xs text-gray-500">- Displayed on your profile</span>
-                    </div>
-                    <div className="text-xs text-gray-700 leading-relaxed">
-                      {cvPreviewData.extractedProfile.skills_list.slice(0, 20).join(", ")}
-                      {cvPreviewData.extractedProfile.skills_list.length > 20 && (
-                        <span className="text-gray-500"> ... +{cvPreviewData.extractedProfile.skills_list.length - 20} more</span>
-                      )}
-                    </div>
-                    {cvPreviewData.extractedProfile.skill_mapping && Object.keys(cvPreviewData.extractedProfile.skill_mapping).length > 0 && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-blue-600 cursor-pointer hover:underline">View skill → category mapping</summary>
-                        <div className="mt-2 p-2 bg-white rounded border text-xs max-h-32 overflow-auto">
-                          {Object.entries(cvPreviewData.extractedProfile.skill_mapping).slice(0, 15).map(([skill, category]) => (
-                            <div key={skill} className="flex gap-2 py-0.5">
-                              <span className="text-gray-700">{skill}</span>
-                              <span className="text-gray-400">→</span>
-                              <span className="text-blue-700 font-medium">{category as string}</span>
-                            </div>
-                          ))}
-                          {Object.keys(cvPreviewData.extractedProfile.skill_mapping).length > 15 && (
-                            <div className="text-gray-500 italic">... +{Object.keys(cvPreviewData.extractedProfile.skill_mapping).length - 15} more mappings</div>
-                          )}
+              {extracted.skill_mapping && Object.keys(extracted.skill_mapping).length > 0 && (
+                <details className="mt-4 rounded-2xl border  bg-white/75 p-4">
+                  <summary className="cursor-pointer text-sm font-medium text-[hsl(226,65%,42%)]">
+                    View skill to category mapping
+                  </summary>
+                  <div className="mt-3 max-h-40 space-y-1 overflow-auto text-sm text-[hsl(220,10%,42%)]">
+                    {Object.entries(extracted.skill_mapping)
+                      .slice(0, 15)
+                      .map(([skill, category]) => (
+                        <div key={skill} className="flex gap-2">
+                          <span>{skill}</span>
+                          <span className="text-slate-400">-&gt;</span>
+                          <span className="font-medium text-[hsl(226,65%,42%)]">{category}</span>
                         </div>
-                      </details>
-                    )}
+                      ))}
                   </div>
-                </div>
+                </details>
               )}
+            </ModalSection>
+          ) : null}
 
-              {/* Info if no changes */}
-              {(!cvPreviewData.extractedProfile.desired_title || cvPreviewData.extractedProfile.desired_title === "Unknown") && 
-               cvPreviewData.extractedProfile.seniority_hint === "unknown" && 
-               cvPreviewData.mergedSkills.length === 0 &&
-               (!cvPreviewData.extractedProfile.industry_ids || cvPreviewData.extractedProfile.industry_ids.length === 0) && (
-                <div className="text-center text-gray-500 py-4">
-                  No profile data was extracted from this CV.
-                </div>
-              )}
+          {hasNoChanges && (
+            <div className="rounded-2xl border border-dashed  bg-white/70 px-4 py-6 text-center text-sm text-[hsl(220,10%,42%)]">
+              No profile updates were extracted from this CV.
             </div>
-
-            <div className="p-6 border-t bg-gray-50 flex gap-3 sticky bottom-0">
-              <button
-                type="button"
-                onClick={rejectCvChanges}
-                className="flex-1 px-4 py-2.5 rounded-xl border bg-white hover:bg-gray-50 font-medium text-sm"
-              >
-                Keep Current Profile
-              </button>
-              <button
-                type="button"
-                onClick={applyCvChanges}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm"
-              >
-                Update Profile
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* CV Processing Loading Overlay */}
-      {isProcessingCv && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
-            <div className="text-center">
-              {/* Spinner */}
-              <div className="inline-block w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-              
-              {/* Title */}
-              <h3 className="text-xl font-bold mb-2">Processing Your CV</h3>
-              <p className="text-sm text-gray-600 mb-4">Please wait while we analyze your CV...</p>
-              
-              {/* Progress Steps */}
-              <div className="space-y-2 text-left">
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-gray-700">Uploading file...</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <span className="text-gray-700">Extracting text (OCR)...</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                  <span className="text-gray-700">Analyzing skills with AI...</span>
-                </div>
-              </div>
-              
-              <div className="mt-6 text-xs text-gray-500">
-                This usually takes 5-10 seconds
-              </div>
-            </div>
-          </div>
+        <div className="sticky bottom-0 flex gap-3 border-t border-slate-200/60 bg-white/90 px-6 py-4 backdrop-blur">
+          <button type="button" onClick={onClose} className="btn-ghost flex-1 text-sm">
+            Keep current profile
+          </button>
+          <button type="button" onClick={onApply} className="btn-primary flex-1 text-sm">
+            Apply extracted changes
+          </button>
         </div>
-      )}
+      </div>
+    </div>
+  );
+}
+
+function ModalSection({
+  title,
+  eyebrow,
+  children,
+}: {
+  title: string;
+  eyebrow: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.35rem] border  bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,252,0.9))] p-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">{eyebrow}</div>
+      <h3 className="mt-1 text-base font-semibold text-[hsl(220,20%,14%)]">{title}</h3>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function KeyValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border  bg-white/75 px-4 py-3">
+      <div className="text-xs uppercase tracking-[0.18em] text-[hsl(220,10%,56%)]">{label}</div>
+      <div className="mt-1 text-sm font-medium text-[hsl(220,20%,14%)]">{value}</div>
+    </div>
+  );
+}
+
+function CompareRow({ before, after }: { before: string; after: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border  bg-white/75 px-4 py-3 text-sm">
+      <span className="text-[hsl(220,10%,42%)]">{before}</span>
+      <span className="text-slate-400">-&gt;</span>
+      <span className="font-medium text-emerald-700">{after}</span>
+    </div>
+  );
+}
+
+function ProcessingOverlay() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+      <div className="card-elevated mx-4 w-full max-w-md p-8 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(226,85%,96%)] text-[hsl(226,65%,42%)]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+        <h3 className="text-xl font-bold text-[hsl(220,20%,14%)]">Processing your CV</h3>
+        <p className="mt-2 text-sm text-[hsl(220,10%,42%)]">
+          Uploading, extracting text, and mapping skills. This usually takes 5 to 10 seconds.
+        </p>
+
+        <div className="mt-6 space-y-3 text-left text-sm text-[hsl(220,10%,42%)]">
+          <StepRow color="bg-emerald-500" text="Uploading file to profile storage" />
+          <StepRow color="bg-blue-500" text="Running OCR and text extraction" />
+          <StepRow color="bg-amber-500" text="Analyzing profile signals with AI" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepRow({ color, text }: { color: string; text: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className={cn("h-2.5 w-2.5 rounded-full animate-pulse", color)} />
+      <span>{text}</span>
     </div>
   );
 }
@@ -674,30 +828,44 @@ function ProfileTabs({
   benefitTypes,
   industryMap,
   skillMap,
-}: any) {
+}: {
+  profile: UserProfile;
+  setField: <K extends keyof UserProfile>(k: K, v: UserProfile[K]) => void;
+  industries: Industry[];
+  skills: Skill[];
+  benefitTypes: string[];
+  industryMap: Map<number, string>;
+  skillMap: Map<string, string>;
+}) {
   const [tab, setTab] = useState<"basics" | "prefs">("basics");
 
   return (
-    <div className="border rounded-2xl p-4 bg-white">
-      <div className="flex items-center gap-2 mb-4">
-        <TabBtn active={tab === "basics"} onClick={() => setTab("basics")}>
-          Basics
-        </TabBtn>
-        <TabBtn active={tab === "prefs"} onClick={() => setTab("prefs")}>
-          Preferences
-        </TabBtn>
+    <div className="card-elevated p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">Editable profile</div>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight text-[hsl(220,20%,14%)]">Profile settings</h2>
+        </div>
+        <div className="flex gap-2 rounded-2xl border  bg-white/80 p-1">
+          <TabBtn active={tab === "basics"} onClick={() => setTab("basics")}>
+            Basics
+          </TabBtn>
+          <TabBtn active={tab === "prefs"} onClick={() => setTab("prefs")}>
+            Preferences
+          </TabBtn>
+        </div>
       </div>
 
       {tab === "basics" && (
-        <div className="space-y-4">
-          <div className="font-semibold">Basic info</div>
+        <div className="mt-5 space-y-4">
+          <SectionIntro title="Basic identity" desc="These signals drive title and skill matching across the dashboard." />
 
           <Field label="Full name">
             <input
               value={profile.fullName || ""}
               onChange={(e) => setField("fullName", e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border"
-              placeholder="VD: Phung Tat Dat"
+              className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
+              placeholder="Example: Phung Tat Dat"
             />
           </Field>
 
@@ -705,40 +873,34 @@ function ProfileTabs({
             <input
               value={profile.desiredTitle || ""}
               onChange={(e) => setField("desiredTitle", e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border"
-              placeholder="VD: Backend Engineer"
+              className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
+              placeholder="Example: Backend Engineer"
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <Field label="Seniority">
               <select
                 value={profile.seniority || ""}
-                onChange={(e) => setField("seniority", (e.target.value || undefined) as SeniorityLevel | undefined)}
-                className="w-full px-3 py-2 rounded-xl border bg-white"
+                onChange={(e) =>
+                  setField("seniority", (e.target.value || undefined) as SeniorityLevel | undefined)
+                }
+                className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
               >
-                <option value="">—</option>
-                {[
-                  { value: "intern", label: "Intern / Fresher" },
-                  { value: "junior", label: "Junior (1-2y)" },
-                  { value: "mid", label: "Mid (2-5y)" },
-                  { value: "senior", label: "Senior (5y+)" },
-                  { value: "lead", label: "Lead / Manager" },
-                ].map(
-                  (x) => (
-                    <option key={x.value} value={x.value}>
-                      {x.label}
-                    </option>
-                  )
-                )}
+                <option value="">-</option>
+                {SENIORITY_OPTIONS.map((x) => (
+                  <option key={x.value} value={x.value}>
+                    {x.label}
+                  </option>
+                ))}
               </select>
             </Field>
 
-            <Field label="Unit">
+            <Field label="Salary unit">
               <select
                 value={profile.targetSalaryUnit || "monthly"}
                 onChange={(e) => setField("targetSalaryUnit", e.target.value as any)}
-                className="w-full px-3 py-2 rounded-xl border bg-white"
+                className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
               >
                 <option value="monthly">monthly</option>
                 <option value="hourly">hourly</option>
@@ -746,14 +908,14 @@ function ProfileTabs({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <Field label="Min salary">
               <input
                 type="number"
                 value={profile.targetSalaryMin ?? ""}
                 onChange={(e) => setField("targetSalaryMin", e.target.value ? Number(e.target.value) : undefined)}
-                className="w-full px-3 py-2 rounded-xl border"
-                placeholder="VD: 2"
+                className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
+                placeholder="Example: 2"
                 min={0}
               />
             </Field>
@@ -762,8 +924,8 @@ function ProfileTabs({
                 type="number"
                 value={profile.targetSalaryMax ?? ""}
                 onChange={(e) => setField("targetSalaryMax", e.target.value ? Number(e.target.value) : undefined)}
-                className="w-full px-3 py-2 rounded-xl border"
-                placeholder="VD: 10"
+                className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
+                placeholder="Example: 10"
                 min={0}
               />
             </Field>
@@ -771,7 +933,7 @@ function ProfileTabs({
 
           <TagPicker<string>
             title="Skills"
-            options={skills.map((s: any) => ({ value: s.skill_abr, label: `${s.skill_abr} — ${s.skill_name}` }))}
+            options={skills.map((s) => ({ value: s.skill_abr, label: `${s.skill_abr} - ${s.skill_name}` }))}
             selected={profile.skillAbbrs || []}
             onChange={(v) => setField("skillAbbrs", v)}
             placeholder="Search skill..."
@@ -779,104 +941,116 @@ function ProfileTabs({
         </div>
       )}
 
-      <>
-        {tab === "prefs" && (
-          <div className="space-y-4">
-            <div className="font-semibold">Preferences</div>
+      {tab === "prefs" && (
+        <div className="mt-5 space-y-4">
+          <SectionIntro title="Preferences" desc="These filters affect which jobs look strongest for your profile." />
 
-            <TagPicker<number>
-              title="Industries"
-              options={industries.map((i: any) => ({ value: i.industry_id, label: i.industry_name }))}
-              selected={profile.industryIds || []}
-              onChange={(v) => setField("industryIds", v)}
-              placeholder="Search industry..."
-            />
+          <TagPicker<number>
+            title="Industries"
+            options={industries.map((i) => ({ value: i.industry_id, label: i.industry_name }))}
+            selected={profile.industryIds || []}
+            onChange={(v) => setField("industryIds", v)}
+            placeholder="Search industry..."
+          />
 
-            <TagPicker<string>
-              title="Benefits"
-              options={benefitTypes.map((t: string) => ({ value: t, label: t }))}
-              selected={profile.benefitTypes || []}
-              onChange={(v) => setField("benefitTypes", v)}
-              placeholder="Search benefit..."
-            />
+          <TagPicker<string>
+            title="Benefits"
+            options={benefitTypes.map((t) => ({ value: t, label: t }))}
+            selected={profile.benefitTypes || []}
+            onChange={(v) => setField("benefitTypes", v)}
+            placeholder="Search benefit..."
+          />
 
-            <Field label="Preferred Company Size">
-              <select
-                value={profile.companySize || ""}
-                onChange={(e) => setField("companySize", e.target.value || undefined)}
-                className="w-full px-3 py-2 rounded-xl border bg-white"
-              >
-                <option value="">—</option>
-                <option value="1-10">1-10 employees (Startup)</option>
-                <option value="11-50">11-50 employees (Small)</option>
-                <option value="51-200">51-200 employees (Medium)</option>
-                <option value="201-500">201-500 employees (Large)</option>
-                <option value="501-1000">501-1000 employees (Enterprise)</option>
-                <option value="1000+">1000+ employees (Corporate)</option>
-              </select>
-            </Field>
+          <Field label="Preferred company size">
+            <select
+              value={profile.companySize || ""}
+              onChange={(e) => setField("companySize", e.target.value || undefined)}
+              className="w-full rounded-xl border  bg-white/85 px-3 py-2.5 text-sm outline-none"
+            >
+              <option value="">-</option>
+              <option value="1-10">1-10 employees (Startup)</option>
+              <option value="11-50">11-50 employees (Small)</option>
+              <option value="51-200">51-200 employees (Medium)</option>
+              <option value="201-500">201-500 employees (Large)</option>
+              <option value="501-1000">501-1000 employees (Enterprise)</option>
+              <option value="1000+">1000+ employees (Corporate)</option>
+            </select>
+          </Field>
 
-            <TagPicker<string>
-              title="Company Culture/Specialities"
-              options={[
-                { value: "Remote-first", label: "Remote-first" },
-                { value: "Fast-paced", label: "Fast-paced" },
-                { value: "Work-life balance", label: "Work-life balance" },
-                { value: "Startup culture", label: "Startup culture" },
-                { value: "Enterprise culture", label: "Enterprise culture" },
-                { value: "Innovation-driven", label: "Innovation-driven" },
-                { value: "Research-focused", label: "Research-focused" },
-                { value: "Product-focused", label: "Product-focused" },
-                { value: "Customer-centric", label: "Customer-centric" },
-                { value: "Agile/Scrum", label: "Agile/Scrum" },
-              ]}
-              selected={profile.companySpecialities || []}
-              onChange={(v) => setField("companySpecialities", v)}
-              placeholder="Search culture/speciality..."
-            />
-          </div>
-        )}
-
-        {/* ✅ Snapshot as separate section - always visible */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="font-semibold mb-3">Profile Snapshot</div>
-          <div className="rounded-xl border p-3 text-xs text-gray-700 space-y-1.5 bg-gray-50">
-            <div>
-              <span className="font-medium">Salary:</span> {profile.targetSalaryMin ?? "—"} - {profile.targetSalaryMax ?? "—"} / {profile.targetSalaryUnit || "monthly"}
-            </div>
-            <div>
-              <span className="font-medium">Industries:</span> {(profile.industryIds || []).map((id: any) => industryMap.get(id) || id).join(", ") || "—"}
-            </div>
-            <div>
-              <span className="font-medium">Skills:</span> {(profile.skillAbbrs || []).map((a: any) =>
-                skillMap.get(a) ? `${a}(${skillMap.get(a)})` : a
-              ).join(", ") || "—"}
-            </div>
-            <div>
-              <span className="font-medium">Benefits:</span> {(profile.benefitTypes || []).join(", ") || "—"}
-            </div>
-            <div>
-              <span className="font-medium">Company Size:</span> {profile.companySize || "—"}
-            </div>
-            <div>
-              <span className="font-medium">Company Culture:</span> {(profile.companySpecialities || []).join(", ") || "—"}
-            </div>
-          </div>
+          <TagPicker<string>
+            title="Company culture / specialities"
+            options={COMPANY_SPECIALITIES}
+            selected={profile.companySpecialities || []}
+            onChange={(v) => setField("companySpecialities", v)}
+            placeholder="Search culture / speciality..."
+          />
         </div>
-      </>
+      )}
+
+      <div className="mt-5 border-t border-slate-200/60 pt-5">
+        <div className="text-[11px] uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">Live snapshot</div>
+        <div className="mt-3 rounded-[1.35rem] border  bg-white/75 p-4 text-sm text-[hsl(220,10%,42%)]">
+          <SnapshotRow
+            label="Salary"
+            value={`${profile.targetSalaryMin ?? "-"} - ${profile.targetSalaryMax ?? "-"} / ${profile.targetSalaryUnit || "monthly"}`}
+          />
+          <SnapshotRow
+            label="Industries"
+            value={(profile.industryIds || []).map((id) => industryMap.get(id) || String(id)).join(", ") || "-"}
+          />
+          <SnapshotRow
+            label="Skills"
+            value={
+              (profile.skillAbbrs || [])
+                .map((a) => (skillMap.get(a) ? `${a} (${skillMap.get(a)})` : a))
+                .join(", ") || "-"
+            }
+          />
+          <SnapshotRow label="Benefits" value={(profile.benefitTypes || []).join(", ") || "-"} />
+          <SnapshotRow label="Company size" value={profile.companySize || "-"} />
+          <SnapshotRow label="Culture" value={(profile.companySpecialities || []).join(", ") || "-"} />
+        </div>
+      </div>
     </div>
   );
 }
 
-function TabBtn({ active, onClick, children }: any) {
+function SectionIntro({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="rounded-2xl border  bg-white/70 px-4 py-3">
+      <div className="text-sm font-semibold text-[hsl(220,20%,14%)]">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-[hsl(220,10%,42%)]">{desc}</div>
+    </div>
+  );
+}
+
+function SnapshotRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mb-2 last:mb-0">
+      <span className="font-medium text-[hsl(220,20%,14%)]">{label}:</span> {value}
+    </div>
+  );
+}
+
+function TabBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={[
-        "px-3 py-1.5 text-sm rounded-xl border",
-        active ? "bg-gray-900 text-white border-gray-900" : "bg-white hover:bg-gray-50",
-      ].join(" ")}
+      className={cn(
+        "rounded-xl px-3 py-1.5 text-sm font-medium transition-colors",
+        active
+          ? "bg-[hsl(220,20%,14%)] text-white shadow-sm"
+          : "text-[hsl(220,10%,42%)] hover:text-[hsl(220,20%,14%)]"
+      )}
     >
       {children}
     </button>
@@ -886,13 +1060,17 @@ function TabBtn({ active, onClick, children }: any) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <div className="text-xs text-gray-600 mb-1">{label}</div>
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(220,10%,56%)]">{label}</div>
       {children}
     </label>
   );
 }
 
-function mergeSkills(currentAbbrs: string[], ocrSkills: string[], allSkills: { skill_abr: string; skill_name: string }[]) {
+function mergeSkills(
+  currentAbbrs: string[],
+  ocrSkills: string[],
+  allSkills: { skill_abr: string; skill_name: string }[]
+) {
   const nameToAbr = new Map(allSkills.map((s) => [s.skill_name.toLowerCase(), s.skill_abr]));
   const set = new Set(currentAbbrs);
 
@@ -920,18 +1098,13 @@ function TagPicker<T extends string | number>({
   const [isFocused, setIsFocused] = useState(false);
   const selectedSet = useMemo(() => new Set(selected.map(String)), [selected]);
 
-  // Show all unselected options when focused, filter when user types
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
     const unselected = options.filter((o) => !selectedSet.has(String(o.value)));
-    
     if (!qq) return unselected.slice(0, 50);
-    
+
     return unselected
-      .filter(
-        (o) =>
-          o.label.toLowerCase().includes(qq) || String(o.value).toLowerCase().includes(qq)
-      )
+      .filter((o) => o.label.toLowerCase().includes(qq) || String(o.value).toLowerCase().includes(qq))
       .slice(0, 50);
   }, [q, options, selectedSet]);
 
@@ -951,76 +1124,75 @@ function TagPicker<T extends string | number>({
 
   return (
     <div className="block">
-      <div className="text-xs text-gray-600 mb-1 font-semibold">{title}</div>
-      <div className="border rounded-2xl p-3">
-        {/* Clear button and selected tags on same row */}
-        <div className="flex flex-wrap items-center gap-2 min-h-[34px]">
+      <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[hsl(220,10%,56%)]">{title}</div>
+      <div className="rounded-[1.35rem] border  bg-white/70 p-3">
+        <div className="flex min-h-[36px] flex-wrap items-center gap-2">
           {selected.length === 0 ? (
-            <div className="text-xs text-gray-500">No selection</div>
+            <div className="text-xs text-[hsl(220,10%,42%)]">No selection</div>
           ) : (
             selected.slice(0, 20).map((v) => {
               const label = options.find((o) => String(o.value) === String(v))?.label ?? String(v);
               return (
-                <span key={String(v)} className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-white text-xs">
+                <span
+                  key={String(v)}
+                  className="inline-flex items-center gap-2 rounded-full border  bg-white px-3 py-1 text-xs"
+                >
                   {label}
                   <button
                     type="button"
                     onClick={() => remove(v)}
-                    className="w-5 h-5 rounded-full border bg-white hover:bg-gray-50 grid place-items-center text-[10px]"
+                    className="grid h-5 w-5 place-items-center rounded-full border border-slate-200 bg-white text-[10px] hover:bg-slate-50"
                     aria-label="Remove"
                     title="Remove"
                   >
-                    ✕
+                    x
                   </button>
                 </span>
               );
             })
           )}
-          {selected.length > 20 && <span className="text-xs text-gray-500">+{selected.length - 20} more</span>}
-          
-          {/* Clear button at the end of the row */}
+          {selected.length > 20 && <span className="text-xs text-[hsl(220,10%,42%)]">+{selected.length - 20} more</span>}
+
           <button
             type="button"
             onClick={clearAll}
-            className="text-xs px-2 py-1 rounded-lg border bg-white hover:bg-gray-50 ml-auto"
+            className="ml-auto rounded-lg border  bg-white px-2.5 py-1 text-xs hover:bg-slate-50 disabled:opacity-50"
             disabled={selected.length === 0}
           >
             Clear
           </button>
         </div>
 
-        <div className="mt-2 relative">
+        <div className="relative mt-3">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-            className="w-full px-3 py-2 rounded-xl border text-sm"
+            className="w-full rounded-xl border  bg-white px-3 py-2.5 text-sm outline-none"
             placeholder={placeholder || "Search..."}
           />
 
-          {(isFocused && filtered.length > 0) && (
-            <div className="mt-2 max-h-[200px] overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          {isFocused && filtered.length > 0 && (
+            <div className="mt-2 max-h-[220px] overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
               {filtered.map((o, idx) => (
                 <button
                   key={String(o.value)}
                   type="button"
                   onClick={() => add(o.value)}
-                  className={[
-                    "w-full text-left px-4 py-2.5 text-sm transition-colors",
-                    "hover:bg-blue-50 hover:text-blue-900",
-                    "focus:outline-none focus:bg-blue-50",
-                    idx !== filtered.length - 1 ? "border-b border-gray-100" : ""
-                  ].join(" ")}
+                  className={cn(
+                    "w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-blue-50 hover:text-blue-900 focus:bg-blue-50 focus:outline-none",
+                    idx !== filtered.length - 1 && "border-b border-slate-100"
+                  )}
                 >
-                  <span className="block font-medium">{o.label}</span>
+                  {o.label}
                 </button>
               ))}
             </div>
           )}
 
           {isFocused && q.trim() && filtered.length === 0 && (
-            <div className="mt-2 text-xs text-gray-500">No results</div>
+            <div className="mt-2 text-xs text-[hsl(220,10%,42%)]">No results</div>
           )}
         </div>
       </div>

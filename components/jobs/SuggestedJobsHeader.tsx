@@ -1,6 +1,6 @@
-// components/jobs/SuggestedJobsHeader.tsx
 "use client";
-import { Search, SlidersHorizontal, MapPin, Briefcase, Info } from "lucide-react";
+
+import { Briefcase, Info, Search, Sparkles } from "lucide-react";
 
 type Props = {
   query: string;
@@ -13,110 +13,101 @@ type Props = {
 };
 
 export default function SuggestedJobsHeader({
-  query, location="", type="", seniority="", minSalary="", resultCount=0, onChange
+  query,
+  location = "",
+  type = "",
+  seniority = "",
+  minSalary = "",
+  resultCount = 0,
+  onChange,
 }: Props) {
+  const activeFilters = [query, location, type, seniority, minSalary].filter(Boolean).length;
+
   return (
     <section>
-      {/* Top row */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-[hsl(220,20%,14%)]">
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-[hsl(226,65%,42%)] md:text-3xl">
             Suggested Jobs
           </h2>
-          <p className="text-[hsl(220,10%,56%)] text-sm mt-0.5">
-            Personalized recommendations based on your profile
-          </p>
+
         </div>
-        <div className="flex items-center gap-2 text-sm text-[hsl(220,10%,42%)]">
-          <div className="flex items-center gap-1.5 chip chip-primary">
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span className="font-semibold">{resultCount}</span>
-            <span>results</span>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border  bg-white/75 px-4 py-3 shadow-sm">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">Results</div>
+            <div className="mt-1 text-2xl font-semibold text-[hsl(220,20%,14%)]">{resultCount}</div>
+          </div>
+          <div className="rounded-2xl border  bg-white/75 px-4 py-3 shadow-sm">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-[hsl(220,10%,56%)]">Active filters</div>
+            <div className="mt-1 text-2xl font-semibold text-[hsl(220,20%,14%)]">{activeFilters}</div>
           </div>
         </div>
       </div>
 
-      {/* Rubric Legend */}
-      <details className="mt-3 group/legend">
-        <summary className="text-xs text-[hsl(220,10%,56%)] cursor-pointer hover:text-[hsl(226,70%,55%)] transition-colors select-none flex items-center gap-1.5">
-          <Info className="w-3.5 h-3.5" />
-          <span>What do the colored dots mean?</span>
+      <details className="group/legend mt-4">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-[hsl(220,10%,42%)] transition-colors hover:text-[hsl(226,70%,55%)]">
+          <Info className="h-4 w-4" />
+          What do the colored dots mean?
         </summary>
-        <div className="mt-2 p-3 bg-[hsl(220,20%,97%)] rounded-xl border border-[hsl(220,20%,90%)] text-xs space-y-2">
-          {/* Color scale */}
-          <div className="flex items-center gap-4 flex-wrap">
+        <div className="mt-3 rounded-2xl border  bg-white/75 p-4 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
               <span className="text-[hsl(220,10%,42%)]">Good fit (7-10)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
               <span className="text-[hsl(220,10%,42%)]">Moderate (4-6)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block" />
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
               <span className="text-[hsl(220,10%,42%)]">Weak fit (0-3)</span>
             </div>
           </div>
-          {/* Dimensions */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[hsl(220,10%,50%)]">
-            <span>🛠 Skills</span>
-            <span>🏭 Industry</span>
-            <span>📊 Seniority</span>
-            <span>💰 Salary</span>
-            <span>🎁 Benefits</span>
-          </div>
-          <p className="text-[10px] text-[hsl(220,10%,60%)] leading-relaxed">
-            Each dot represents how well the job matches your profile in that dimension. Hover over any dot for details.
+          <p className="mt-3 leading-5 text-[hsl(220,10%,42%)]">
+            Dots score skill, industry, seniority, salary, and benefit fit. Hover a dot on any card to inspect that dimension.
           </p>
         </div>
       </details>
 
-      {/* Search + filters */}
-      <div className="mt-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Query */}
-          <div className="col-span-1 lg:col-span-2">
-            <div className="input-field">
-              <Search className="w-4 h-4 text-[hsl(220,10%,56%)] shrink-0" />
-              <input
-                value={query}
-                onChange={(e) => onChange("query", e.target.value)}
-                placeholder="Search by keyword (e.g. software, data, QA...)"
-                className="w-full bg-transparent outline-none placeholder:text-[hsl(220,10%,70%)] text-sm"
-              />
-            </div>
+      <div className="mt-5 rounded-[1.5rem] border  bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.85))] p-4 shadow-[0_18px_28px_-26px_rgba(15,23,42,0.35)]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_auto]">
+          <div className="input-field">
+            <Search className="h-4 w-4 shrink-0 text-[hsl(220,10%,56%)]" />
+            <input
+              value={query}
+              onChange={(e) => onChange("query", e.target.value)}
+              placeholder="Search by keyword, title, or stack"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-[hsl(220,10%,70%)]"
+            />
           </div>
 
-          {/* Min salary */}
-          <div className="col-span-1">
-            <div className="input-field">
-              <Briefcase className="w-4 h-4 text-[hsl(220,10%,56%)] shrink-0" />
-              <input
-                value={minSalary}
-                onChange={(e)=>onChange("minSalary", e.target.value)}
-                placeholder="Min salary"
-                inputMode="numeric"
-                className="w-full bg-transparent outline-none placeholder:text-[hsl(220,10%,70%)] text-sm"
-              />
-            </div>
+          <div className="input-field">
+            <Briefcase className="h-4 w-4 shrink-0 text-[hsl(220,10%,56%)]" />
+            <input
+              value={minSalary}
+              onChange={(e) => onChange("minSalary", e.target.value)}
+              placeholder="Min salary"
+              inputMode="numeric"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-[hsl(220,10%,70%)]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button onClick={() => onChange("submit", "1")} className="btn-primary text-sm">
+              Apply filters
+            </button>
+            <button onClick={() => onChange("reset", "1")} className="btn-ghost text-sm">
+              Reset
+            </button>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <button
-            onClick={()=>onChange("submit","1")}
-            className="btn-primary text-sm"
-          >
-            Apply filters
-          </button>
-          <button
-            onClick={()=>onChange("reset","1")}
-            className="btn-ghost text-sm"
-          >
-            Reset
-          </button>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-[hsl(220,10%,42%)]">
+          {query && <span className="chip chip-primary">Keyword: {query}</span>}
+          {minSalary && <span className="chip chip-accent">Salary {"\u003e="} {minSalary}</span>}
+          {!query && !minSalary && <span className="chip chip-neutral">No filters applied</span>}
         </div>
       </div>
     </section>

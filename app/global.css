@@ -24,28 +24,44 @@
   --clr-muted: 220 10% 56%;
   --clr-text: 220 20% 14%;
   --clr-text-secondary: 220 10% 42%;
+  --clr-hero: 212 100% 99%;
+  --clr-hero-secondary: 42 100% 96%;
 }
 
 html, body, #__next { height: 100%; }
 
 body {
   color: hsl(var(--clr-text));
-  background-color: hsl(var(--clr-surface));
+  background:
+    radial-gradient(circle at top left, hsl(var(--clr-primary-light)) 0%, transparent 34%),
+    radial-gradient(circle at top right, hsl(var(--clr-accent-light)) 0%, transparent 26%),
+    linear-gradient(180deg, hsl(var(--clr-hero)) 0%, hsl(var(--clr-surface)) 42%, white 100%);
+  background-attachment: fixed;
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
 }
 
 /* =========== Utility classes =========== */
 .card-elevated {
-  background: white;
-  border: 1px solid hsl(var(--clr-border));
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(255 255 255 / 0.92)),
+    linear-gradient(135deg, hsl(var(--clr-primary-light)) 0%, hsl(var(--clr-hero-secondary)) 100%);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 18px 45px -28px rgb(15 23 42 / 0.28),
+    0 10px 18px -14px rgb(15 23 42 / 0.14),
+    inset 0 1px 0 rgb(255 255 255 / 0.7);
+  backdrop-filter: blur(16px);
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
 }
 
 .card-elevated:hover {
-  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08), 0 2px 4px -1px rgb(0 0 0 / 0.04);
+  border-color: rgb(255 255 255 / 1);
+  box-shadow:
+    0 28px 52px -30px rgb(15 23 42 / 0.32),
+    0 12px 20px -14px rgb(15 23 42 / 0.16),
+    inset 0 1px 0 rgb(255 255 255 / 0.88);
 }
 
 .chip {
@@ -81,9 +97,9 @@ body {
 }
 
 .btn-primary {
-  background: hsl(var(--clr-primary));
+  background: linear-gradient(135deg, hsl(var(--clr-primary)) 0%, hsl(var(--clr-primary-dark)) 100%);
   color: white;
-  border-radius: 0.75rem;
+  border-radius: 0.95rem;
   padding: 0.6rem 1.25rem;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -97,17 +113,18 @@ body {
 }
 
 .btn-ghost {
-  background: white;
+  background: rgb(255 255 255 / 0.82);
   color: hsl(var(--clr-text-secondary));
-  border-radius: 0.75rem;
+  border-radius: 0.95rem;
   padding: 0.6rem 1.25rem;
   font-weight: 500;
   transition: all 0.15s ease;
-  border: 1px solid hsl(var(--clr-border));
+  border: 1px solid rgb(255 255 255 / 0.9);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
 }
 
 .btn-ghost:hover {
-  background: hsl(var(--clr-surface));
+  background: white;
   color: hsl(var(--clr-text));
 }
 
@@ -116,15 +133,47 @@ body {
   align-items: center;
   gap: 0.5rem;
   border-radius: 0.75rem;
-  border: 1px solid hsl(var(--clr-border));
+  border: 1px solid rgb(148 163 184 / 0.18);
   padding: 0.6rem 0.75rem;
-  background: white;
+  background: rgb(255 255 255 / 0.82);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
 }
 
 .input-field:focus-within {
   border-color: hsl(var(--clr-primary));
   box-shadow: 0 0 0 3px hsl(var(--clr-primary) / 0.1);
+}
+
+.dashboard-grid {
+  position: relative;
+}
+
+.dashboard-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.9), transparent 85%);
+  pointer-events: none;
+}
+
+.glass-banner {
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.92), rgb(255 255 255 / 0.8));
+  border: 1px solid rgb(255 255 255 / 0.85);
+  box-shadow: 0 14px 28px -24px rgb(15 23 42 / 0.28);
+  backdrop-filter: blur(14px);
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(28px);
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* =========== Print =========== */

@@ -1,16 +1,15 @@
 "use client";
 
-import { Loader2, Briefcase } from "lucide-react";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { Briefcase, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import EmptyState from "@/components/common/EmptyState";
 import JobCard from "@/components/jobs/JobCard";
 import JobDetailView from "@/components/jobs/JobDetailView";
-import EmptyState from "@/components/common/EmptyState";
 import SuggestedJobsHeader from "@/components/jobs/SuggestedJobsHeader";
-
-import type { Job } from "@/types/job";
-import { fetchJobsFromBackend, fetchJobsFromRemotive } from "@/services/jobService";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { fetchJobsFromBackend, fetchJobsFromRemotive } from "@/services/jobService";
+import type { Job } from "@/types/job";
 
 export default function JobsPanel({
   source = "backend",
@@ -46,10 +45,8 @@ export default function JobsPanel({
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 12;
 
-  // Detail view state
   const [detailJob, setDetailJob] = useState<Job | null>(null);
 
-  // ---------- Load from API (ONLY when not overridden) ----------
   const loadFromApi = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -63,14 +60,13 @@ export default function JobsPanel({
 
       setJobs(list || []);
     } catch (e: any) {
-      setError(e?.message || "Lỗi tải job");
+      setError(e?.message || "Could not load jobs");
       setJobs([]);
     } finally {
       setLoading(false);
     }
-  }, [source, query, location, type, seniority, minSalary]);
+  }, [location, minSalary, query, seniority, source, type]);
 
-  // ---------- If jobsOverride is provided (even empty []) => use it and DO NOT fetch ----------
   useEffect(() => {
     if (jobsOverride !== null && jobsOverride !== undefined) {
       setJobs(jobsOverride);
@@ -82,7 +78,6 @@ export default function JobsPanel({
     loadFromApi();
   }, [jobsOverride, loadFromApi]);
 
-  // ---------- Filters in-memory ----------
   const filtered = useMemo(() => {
     let out = jobs;
 
@@ -100,34 +95,28 @@ export default function JobsPanel({
     if (seniority) out = out.filter((j) => (j.tags || []).join(" ").toLowerCase().includes(seniority));
 
     return out;
-  }, [jobs, location, type, seniority, minSalary]);
+  }, [jobs, location, minSalary, seniority, type]);
 
   const paged = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page]);
+  const isOverrideMode = !!(jobsOverride && jobsOverride.length > 0);
 
   const toggleSave = (id: string) => {
     setSavedJobs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
-
-  const isOverrideMode = !!(jobsOverride && jobsOverride.length > 0);
 
   const handleCardClick = (job: Job) => {
     setDetailJob(job);
     onSelectJob(job);
   };
 
-  // ========== DETAIL VIEW ==========
   if (detailJob) {
     return (
       <div className="card-elevated p-4 md:p-6">
-        <JobDetailView
-          job={detailJob}
-          onBack={() => setDetailJob(null)}
-        />
+        <JobDetailView job={detailJob} onBack={() => setDetailJob(null)} />
       </div>
     );
   }
 
-  // ========== LIST VIEW ==========
   return (
     <div className="card-elevated p-4 md:p-6">
       <SuggestedJobsHeader
@@ -164,49 +153,49 @@ export default function JobsPanel({
       />
 
       {(loading || (externalLoading && paged.length === 0)) && (
-        <div className="flex items-center gap-2 text-[hsl(220,10%,56%)] mt-4">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading jobs...
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border  bg-white/70 px-4 py-3 text-sm text-[hsl(220,10%,42%)]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading jobs...
         </div>
       )}
 
-      {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
+      {error && <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {!loading && !(externalLoading && paged.length === 0) && !error && (
-        paged.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-            {paged.map((j) => (
-              <JobCard
-                key={j.id}
-                job={j}
-                selected={selectedJobId === j.id}
-                onSelect={handleCardClick}
-                saved={savedSet.has(j.id)}
-                onToggleSave={() => toggleSave(j.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-6">
-            <EmptyState icon={Briefcase} title="No results" desc="Try another filter or keyword." />
-          </div>
-        )
+        <>
+          {paged.length > 0 ? (
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              {paged.map((j) => (
+                <JobCard
+                  key={j.id}
+                  job={j}
+                  selected={selectedJobId === j.id}
+                  onSelect={handleCardClick}
+                  saved={savedSet.has(j.id)}
+                  onToggleSave={() => toggleSave(j.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6">
+              <EmptyState icon={Briefcase} title="No results" desc="Try another keyword or adjust your profile filters." />
+            </div>
+          )}
+        </>
       )}
 
       {paged.length < filtered.length && (
-        <div className="flex justify-center mt-5">
-          <button
-            className="btn-ghost text-sm"
-            onClick={() => setPage((p) => p + 1)}
-          >
+        <div className="mt-6 flex justify-center">
+          <button className="btn-ghost text-sm" onClick={() => setPage((p) => p + 1)}>
             Load more
           </button>
         </div>
       )}
 
       {ocrSkills.length > 0 && (
-        <p className="text-xs text-[hsl(220,10%,56%)] mt-4">
-          Tip: Select a job to see <b>how well it matches your skills</b> in the right panel.
-        </p>
+        <div className="mt-5 rounded-2xl border  bg-white/65 px-4 py-3 text-xs text-[hsl(220,10%,42%)]">
+          Tip: Select a job to compare it against your current profile skills in the panel on the right.
+        </div>
       )}
     </div>
   );
